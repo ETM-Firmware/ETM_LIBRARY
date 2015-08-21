@@ -1,72 +1,54 @@
 #include <xc.h>
 #include <timer.h>
 #include "P1395_CAN_MASTER.h"
-#include "P1395_MODULE_CONFIG.h"
 #include "A36507.h"
 
-// ----------- Can Timers T2 & T3 Configuration ----------- //
-#define T2_FREQUENCY_HZ          40  // This is 25mS rate
-#define T3_FREQUENCY_HZ          4   // This is 250ms rate
+// ----------- Can Timers T4 & T5 Configuration ----------- //
+#define T4_FREQUENCY_HZ          40  // This is 25mS rate
+#define T5_FREQUENCY_HZ          4   // This is 250ms rate
 
 // DPARKER remove the need for timers.h here
-#define T2CON_VALUE              (T2_OFF & T2_IDLE_CON & T2_GATE_OFF & T2_PS_1_256 & T2_32BIT_MODE_OFF & T2_SOURCE_INT)
-#define PR2_VALUE                (FCY_CLK/256/T2_FREQUENCY_HZ)
+#define T4CON_VALUE              (T4_OFF & T4_IDLE_CON & T4_GATE_OFF & T4_PS_1_256 & T4_32BIT_MODE_OFF & T4_SOURCE_INT)
 
-#define T3CON_VALUE              (T3_OFF & T3_IDLE_CON & T3_GATE_OFF & T3_PS_1_256 & T3_SOURCE_INT)
-#define PR3_VALUE                (FCY_CLK/256/T3_FREQUENCY_HZ)
+#define T5CON_VALUE              (T5_OFF & T5_IDLE_CON & T5_GATE_OFF & T5_PS_1_256 & T5_SOURCE_INT)
 
 
+typedef struct {
+  unsigned int  address;
+  unsigned long led;
+} TYPE_CAN_PARAMETERS;
 
 
-// Global Variables
-ETMCanMessageBuffer etm_can_rx_message_buffer;
-ETMCanMessageBuffer etm_can_tx_message_buffer;
-ETMCanMessageBuffer etm_can_rx_data_log_buffer;
 
-// Public Variables
+
+// --------- Global Buffers --------------- //
+TYPE_EVENT_LOG              event_log;
+ETMCanHighSpeedData         high_speed_data_buffer_a[HIGH_SPEED_DATA_BUFFER_SIZE];
+ETMCanHighSpeedData         high_speed_data_buffer_b[HIGH_SPEED_DATA_BUFFER_SIZE];
+
+
+// --------- Local Buffers ---------------- // 
+ETMCanMessageBuffer         etm_can_rx_data_log_buffer;
+ETMCanMessageBuffer         etm_can_rx_message_buffer;
+ETMCanMessageBuffer         etm_can_tx_message_buffer;
+
+
+// ------------- Global Variables ------------ //
 unsigned int etm_can_next_pulse_level;
 unsigned int etm_can_next_pulse_count;
 
 
-
-#define etm_can_status_register   etm_can_ethernet_board_data.status_data
-#define local_debug_data          etm_can_ethernet_board_data.debug_data
-#define local_can_errors          etm_can_ethernet_board_data.can_status
-#define etm_can_my_configuration  etm_can_ethernet_board_data.configuration
-
-// Public Debug and Status registers
-//ETMCanSystemDebugData local_debug_data;
-//ETMCanStatusRegister  etm_can_status_register;
-//ETMCanAgileConfig     etm_can_my_configuration;
-//ETMCanCanStatus       local_can_errors;
-ETMCanSyncMessage     etm_can_sync_message;
-
-
-
-
-
+// --------------------- Local Variables -------------------------- //
 unsigned int master_high_speed_update_index;
 unsigned int master_low_speed_update_index;
-
 P1395BoardBits board_status_received;
-
-typedef struct {
-  unsigned int reset_count;
-  unsigned int can_timeout_count;
-} PersistentData;
-volatile PersistentData etm_can_persistent_data __attribute__ ((persistent));
-
-
-void ETMCanMasterProcessMessage(void);
-
-void ETMCanMasterCheckForTimeOut(void);
-
-
-ETMCanHighSpeedData high_speed_data_buffer_a[HIGH_SPEED_DATA_BUFFER_SIZE];
-ETMCanHighSpeedData high_speed_data_buffer_b[HIGH_SPEED_DATA_BUFFER_SIZE];
+P1395BoardBits board_com_fault;
+TYPE_CAN_PARAMETERS can_params;
 
 
 
+// --------- Ram Structures that store the module status ---------- //
+ETMCanRamMirrorEthernetBoard     etm_can_ethernet_board_data;
 ETMCanRamMirrorHVLambda          etm_can_hv_lambda_mirror;
 ETMCanRamMirrorIonPump           etm_can_ion_pump_mirror;
 ETMCanRamMirrorAFC               etm_can_afc_mirror;
@@ -75,21 +57,29 @@ ETMCanRamMirrorHeaterMagnet      etm_can_heater_magnet_mirror;
 ETMCanRamMirrorGunDriver         etm_can_gun_driver_mirror;
 ETMCanRamMirrorMagnetronCurrent  etm_can_magnetron_current_mirror;
 ETMCanRamMirrorPulseSync         etm_can_pulse_sync_mirror;
-ETMCanRamMirrorEthernetBoard     etm_can_ethernet_board_data;
 
-void ETMCanSetValueCalibrationUpload(ETMCanMessage* message_ptr) {
-  // Dparker impliment this
-}
+
+ETMCanSyncMessage                etm_can_sync_message;                // This is the sync message that the ECB sends out, only word zero is used at this time
 
 
 
 
+typedef struct {
+  unsigned int reset_count;
+  unsigned int can_timeout_count;
+} PersistentData;
+
+volatile PersistentData etm_can_persistent_data __attribute__ ((persistent));
+
+
+void ETMCanMasterProcessMessage(void);
+
+void ETMCanMasterCheckForTimeOut(void);
 
 
 
 
-void ETMCanSetValueCalibrationUpload(ETMCanMessage* message_ptr);
-// DPARKER what does this do
+
 
 
 
@@ -99,19 +89,21 @@ void ETMCanMasterTimedTransmit(void);
   
 */
 
-// These are commands that the ECB sends to sub boards
-void ETMCanMasterSenseSync();
-void ETMCanMasterHVLambdaUpdateOutput(void);
-void ETMCanMasterAFCUpdateHomeOffset(void);
-// DPARKER missing the other AFC commands - related to manual mode, auto zero ect
-// DPARKER missing the commands related to SF6 control
-void ETMCanMasterHtrMagnetUpdateOutput(void);
-void ETMCanMasterGunDriverUpdatePulseTop(void);
-void ETMCanMasterGunDriverUpdateHeaterCathode(void);
-void ETMCanMasterPulseSyncUpdateHighRegZero(void);
-void ETMCanMasterPulseSyncUpdateHighRegOne(void);
-void ETMCanMasterPulseSyncUpdateLowRegZero(void);
-void ETMCanMasterPulseSyncUpdateLowRegOne(void);
+
+
+
+// These are the regularly scheduled commands that the ECB sends to sub boards
+void ETMCanMasterSendSync();                         // This gets sent out 1 time every 50ms
+void ETMCanMasterHVLambdaUpdateOutput(void);          // This gets sent out 1 time every 200ms
+void ETMCanMasterHtrMagnetUpdateOutput(void);         // This gets sent out 1 time every 200ms 
+void ETMCanMasterGunDriverUpdatePulseTop(void);       // This gets sent out 1 time every 200ms
+void ETMCanMasterAFCUpdateHomeOffset(void);           // This gets sent out at 200ms / 6 = 1.2 Seconds
+void ETMCanMasterGunDriverUpdateHeaterCathode(void);  // This gets sent out at 200ms / 6 = 1.2 Seconds
+void ETMCanMasterPulseSyncUpdateHighRegZero(void);    // This gets sent out at 200ms / 6 = 1.2 Seconds
+void ETMCanMasterPulseSyncUpdateHighRegOne(void);     // This gets sent out at 200ms / 6 = 1.2 Seconds
+void ETMCanMasterPulseSyncUpdateLowRegZero(void);     // This gets sent out at 200ms / 6 = 1.2 Seconds
+void ETMCanMasterPulseSyncUpdateLowRegOne(void);      // This gets sent out at 200ms / 6 = 1.2 Seconds
+
 // DPARKER how are the LEDs set on Pulse Sync Board?? Missing that command
 
 void ETMCanMasterSet2FromSlave(ETMCanMessage* message_ptr);
@@ -125,7 +117,7 @@ void ETMCanMasterSet2FromSlave(ETMCanMessage* message_ptr);
 void ETMCanMasterUpdateSlaveStatus(ETMCanMessage* message_ptr);
 /*
   This moves the data from the status message into the RAM copy on the master
-  It also keeps track of which boards have sent a status message and clears TMR3 once all boards have reported a status message
+  It also keeps track of which boards have sent a status message and clears TMR5 once all boards have reported a status message
 */
 
 void ETMCanMasterProcessLogData(void);
@@ -135,21 +127,36 @@ void ETMCanMasterProcessLogData(void);
 
 
 void ETMCanMasterClearDebug(void);
+/*
+  This sets all the debug data to zero.
+  This is usefull when debugging
+  It is also required on power cycle because persistent variables will be set to random value
+*/
 
-void ETMCanMasterInitialize(void) {
+
+void ETMCanMasterInitialize(unsigned long fcy, unsigned int etm_can_address, unsigned long can_operation_led, unsigned int can_interrupt_priority) {
+  unsigned long timer_period_value;
+
+  if (can_interrupt_priority > 7) {
+    can_interrupt_priority = 7;
+  }
+
+  can_params.address = etm_can_address;
+  can_params.led = can_operation_led;
+
   etm_can_persistent_data.reset_count++;
   
   _SYNC_CONTROL_WORD = 0;
-  etm_can_sync_message.sync_1 = 1;
-  etm_can_sync_message.sync_2 = 2;
-  etm_can_sync_message.sync_3 = 3;
+  etm_can_sync_message.sync_1 = 0;
+  etm_can_sync_message.sync_2 = 0;
+  etm_can_sync_message.sync_3 = 0;
   
   local_debug_data.reset_count = etm_can_persistent_data.reset_count;
   local_can_errors.timeout = etm_can_persistent_data.can_timeout_count;
 
   _CXIE = 0;
   _CXIF = 0;
-  _CXIP = ETM_CAN_INTERRUPT_PRIORITY;
+  _CXIP = can_interrupt_priority;
   
   CXINTF = 0;
   
@@ -158,8 +165,6 @@ void ETMCanMasterInitialize(void) {
   CXINTEbits.TX0IE = 1; // Enable TXB0 interrupt
   CXINTEbits.ERRIE = 1; // Enable Error interrupt
 
-  // DPARKER - Zero all the counters in the error structure.
-  
   ETMCanBufferInitialize(&etm_can_rx_message_buffer);
   ETMCanBufferInitialize(&etm_can_tx_message_buffer);
   ETMCanBufferInitialize(&etm_can_rx_data_log_buffer);
@@ -171,10 +176,21 @@ void ETMCanMasterInitialize(void) {
   CXCTRL = CXCTRL_CONFIG_MODE_VALUE;
   while(CXCTRLbits.OPMODE != 4);
   
-  CXCFG1 = ETM_CAN_CXCFG1_VALUE;
+  if (fcy == 25000000) {
+    CXCFG1 = CXCFG1_25MHZ_FCY_VALUE;    
+  } else if (fcy == 20000000) {
+    CXCFG1 = CXCFG1_20MHZ_FCY_VALUE;    
+  } else if (fcy == 10000000) {
+    CXCFG1 = CXCFG1_10MHZ_FCY_VALUE;    
+  } else {
+    // If you got here we can't configure the can module
+    // Try to set to operate in 10MHZ mode.
+    // Can probably won't talk
+    CXCFG1 = CXCFG1_10MHZ_FCY_VALUE;    
+  }
+  
   CXCFG2 = CXCFG2_VALUE;
-  
-  
+    
   // Load Mask registers for RX0 and RX1
   CXRXM0SID = ETM_CAN_MASTER_RX0_MASK;
   CXRXM1SID = ETM_CAN_MASTER_RX1_MASK;
@@ -196,7 +212,6 @@ void ETMCanMasterInitialize(void) {
   CXTX1DLC = CXTXXDLC_VALUE;
   CXTX2DLC = CXTXXDLC_VALUE;
 
-  
   // Set Receiver Mode
   CXRX0CON = CXRXXCON_VALUE;
   CXRX1CON = CXRXXCON_VALUE;
@@ -205,40 +220,57 @@ void ETMCanMasterInitialize(void) {
   CXCTRL = CXCTRL_OPERATE_MODE_VALUE;
   while(CXCTRLbits.OPMODE != 0);
   
-  // Set up data structure for ethernet board
-  //etm_can_ethernet_board_data.can_status    = &local_can_errors;
-  //etm_can_ethernet_board_data.debug_data    = &local_debug_data;
-  //etm_can_ethernet_board_data.configuration = &etm_can_my_configuration;
-  //etm_can_ethernet_board_data.status_data   = &etm_can_status_register;
-
-
-  etm_can_ethernet_board_data.status_received_register = 0x0000;
+  //etm_can_ethernet_board_data.status_received_register = 0x0000;
 
   // Enable Can interrupt
   _CXIE = 1;
 
-  // Configure T2
-  T2CON = T2CON_VALUE;
-  PR2 = PR2_VALUE;  
-  TMR2 = 0;
-  _T2IF = 0;
-  _T2IE = 0;
-  T2CONbits.TON = 1;
+  // Configure T4
+  timer_period_value = fcy;
+  timer_period_value >>= 8;
+  timer_period_value /= T4_FREQUENCY_HZ;
+  if (timer_period_value > 0xFFFF) {
+    timer_period_value = 0xFFFF;
+  }
+  T4CON = T4CON_VALUE;
+  PR4 = timer_period_value;  
+  TMR4 = 0;
+  _T4IF = 0;
+  _T4IE = 0;
+  T4CONbits.TON = 1;
 
-  // Configure T3
-  T3CON = T3CON_VALUE;
-  PR3 = PR3_VALUE;
-  _T3IF = 0;
-  _T3IE = 0;
-  T3CONbits.TON = 1;
-
-
-  etm_can_my_configuration.agile_number_high_word = ETM_CAN_AGILE_ID_HIGH;
-  etm_can_my_configuration.agile_number_low_word  = ETM_CAN_AGILE_ID_LOW;
-  etm_can_my_configuration.agile_dash             = ETM_CAN_AGILE_DASH;
-  etm_can_my_configuration.agile_rev_ascii        = ETM_CAN_AGILE_REV;
-  etm_can_my_configuration.serial_number          = ETM_CAN_SERIAL_NUMBER;
+  // Configure T5
+  timer_period_value = fcy;
+  timer_period_value >>= 8;
+  timer_period_value /= T5_FREQUENCY_HZ;
+  if (timer_period_value > 0xFFFF) {
+    timer_period_value = 0xFFFF;
+  }
+  T5CON = T5CON_VALUE;
+  PR5 = timer_period_value;
+  TMR5 = 0;
+  _T5IF = 0;
+  _T5IE = 0;
+  T5CONbits.TON = 1;
 }
+
+
+void ETMCanMasterLoadConfiguration(unsigned long agile_id, unsigned int agile_dash, unsigned int firmware_agile_rev, unsigned int firmware_branch, unsigned int firmware_minor_rev) {
+
+  etm_can_my_configuration.agile_number_low_word = (agile_id & 0xFFFF);
+  agile_id >>= 16;
+  etm_can_my_configuration.agile_number_high_word = agile_id;
+  etm_can_my_configuration.agile_dash = agile_dash;
+  etm_can_my_configuration.firmware_branch = firmware_branch;
+  etm_can_my_configuration.firmware_major_rev = firmware_agile_rev;
+  etm_can_my_configuration.firmware_minor_rev = firmware_minor_rev;
+
+  // Load default values for agile rev and serial number at this time
+  // Need some way to update these with the real numbers
+  etm_can_my_configuration.agile_rev_ascii = 'A';
+  etm_can_my_configuration.serial_number = 0;
+}
+
 
 void ETMCanMasterDoCan(void) {
   // Record the max TX counter
@@ -305,18 +337,18 @@ void ETMCanMasterTimedTransmit(void) {
 
   if ((_STATUS_X_RAY_DISABLED == 0) && (_SYNC_CONTROL_PULSE_SYNC_DISABLE_XRAY)) {
     // We need to immediately send out a sync message
-    ETMCanMasterSenseSync();
+    ETMCanMasterSendSync();
   }
 
 
-  if (_T2IF) {
+  if (_T4IF) {
     // should be true once every 25mS
     // each of the 8 cases will be true once every 200mS
-    _T2IF = 0;
+    _T4IF = 0;
 
     if (!_STATUS_PERSONALITY_LOADED) {
       // Just send out a sync message
-      ETMCanMasterSenseSync();
+      ETMCanMasterSendSync();
     } else {
       master_high_speed_update_index++;
       master_high_speed_update_index &= 0x7;
@@ -326,7 +358,7 @@ void ETMCanMasterTimedTransmit(void) {
 	{
 	case 0x0:
 	  // Send Sync Command (this is on TX1) - This also includes Pulse Sync Enable/Disable
-	  ETMCanMasterSenseSync();
+	  ETMCanMasterSendSync();
 	  break;
 	  
 	case 0x1:
@@ -336,7 +368,7 @@ void ETMCanMasterTimedTransmit(void) {
 	  
 	case 0x2:
 	  // Send Sync Command (this is on TX1) - This also includes Pulse Sync Enable/Disable
-	  ETMCanMasterSenseSync();
+	  ETMCanMasterSendSync();
 	  break;
 	  
 	case 0x3:
@@ -346,7 +378,7 @@ void ETMCanMasterTimedTransmit(void) {
 	  
 	case 0x4:
 	  // Send Sync Command (this is on TX1) - This also includes Pulse Sync Enable/Disable
-	  ETMCanMasterSenseSync();
+	  ETMCanMasterSendSync();
 	  break;
 	  
 	case 0x5:
@@ -356,7 +388,7 @@ void ETMCanMasterTimedTransmit(void) {
 	  
 	case 0x6:
 	  // Send Sync Command (this is on TX1) - This also includes Pulse Sync Enable/Disable
-	  ETMCanMasterSenseSync();
+	  ETMCanMasterSendSync();
 	  break;
 	  
 	case 0x7:
@@ -376,18 +408,23 @@ void ETMCanMasterTimedTransmit(void) {
 	  if (master_low_speed_update_index == 0) {
 	    ETMCanMasterGunDriverUpdateHeaterCathode();  
 	  }
+
 	  if (master_low_speed_update_index == 1) {
 	    ETMCanMasterAFCUpdateHomeOffset();	   
 	  }
+
 	  if (master_low_speed_update_index == 2) {
 	    ETMCanMasterPulseSyncUpdateHighRegZero();	   
 	  }
+
 	  if (master_low_speed_update_index == 3) {
 	    ETMCanMasterPulseSyncUpdateHighRegOne();	   
 	  }
+
 	  if (master_low_speed_update_index == 4) {
 	    ETMCanMasterPulseSyncUpdateLowRegZero();	   
 	  }
+
 	  if (master_low_speed_update_index == 5) {
 	    ETMCanMasterPulseSyncUpdateLowRegOne();	   
 	  }
@@ -400,7 +437,7 @@ void ETMCanMasterTimedTransmit(void) {
 
 
 
-void ETMCanMasterSenseSync(void) {
+void ETMCanMasterSendSync(void) {
   ETMCanMessage sync_message;
   sync_message.identifier = ETM_CAN_MSG_SYNC_TX;
   sync_message.word0 = _SYNC_CONTROL_WORD;
@@ -475,8 +512,8 @@ void ETMCanMasterPulseSyncUpdateHighRegZero(void) {
   ETMCanMessage can_message;
   can_message.identifier = (ETM_CAN_MSG_CMD_TX | (ETM_CAN_ADDR_PULSE_SYNC_BOARD << 3));
   can_message.word3 = ETM_CAN_REGISTER_PULSE_SYNC_SET_1_HIGH_ENERGY_TIMING_REG_0;
-  can_message.word2 = *(unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_delay_high_intensity_3;
-  can_message.word1 = *(unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_delay_high_intensity_1;
+  can_message.word2 = *(unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_delay_high_intensity_2;
+  can_message.word1 = *(unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_delay_high_intensity_0;
   can_message.word0 = *(unsigned int*)&etm_can_pulse_sync_mirror.psync_pfn_delay_high;
   ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
   MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
@@ -486,8 +523,8 @@ void ETMCanMasterPulseSyncUpdateHighRegOne(void) {
   ETMCanMessage can_message;
   can_message.identifier = (ETM_CAN_MSG_CMD_TX | (ETM_CAN_ADDR_PULSE_SYNC_BOARD << 3));
   can_message.word3 = ETM_CAN_REGISTER_PULSE_SYNC_SET_1_HIGH_ENERGY_TIMING_REG_1;
-  can_message.word2 = *(unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_width_high_intensity_3;
-  can_message.word1 = *(unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_width_high_intensity_1;
+  can_message.word2 = *(unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_width_high_intensity_2;
+  can_message.word1 = *(unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_width_high_intensity_0;
   can_message.word0 = *(unsigned int*)&etm_can_pulse_sync_mirror.psync_afc_delay_high;
   ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
   MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
@@ -497,8 +534,8 @@ void ETMCanMasterPulseSyncUpdateLowRegZero(void) {
   ETMCanMessage can_message;
   can_message.identifier = (ETM_CAN_MSG_CMD_TX | (ETM_CAN_ADDR_PULSE_SYNC_BOARD << 3));
   can_message.word3 = ETM_CAN_REGISTER_PULSE_SYNC_SET_1_LOW_ENERGY_TIMING_REG_0;
-  can_message.word2 = *(unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_delay_low_intensity_3;
-  can_message.word1 = *(unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_delay_low_intensity_1;
+  can_message.word2 = *(unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_delay_low_intensity_2;
+  can_message.word1 = *(unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_delay_low_intensity_0;
   can_message.word0 = *(unsigned int*)&etm_can_pulse_sync_mirror.psync_pfn_delay_low;
 
   ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
@@ -509,8 +546,8 @@ void ETMCanMasterPulseSyncUpdateLowRegOne(void) {
   ETMCanMessage can_message;
   can_message.identifier = (ETM_CAN_MSG_CMD_TX | (ETM_CAN_ADDR_PULSE_SYNC_BOARD << 3));
   can_message.word3 = ETM_CAN_REGISTER_PULSE_SYNC_SET_1_LOW_ENERGY_TIMING_REG_1;
-  can_message.word2 = *(unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_width_low_intensity_3;
-  can_message.word1 = *(unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_width_low_intensity_1;
+  can_message.word2 = *(unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_width_low_intensity_2;
+  can_message.word1 = *(unsigned int*)&etm_can_pulse_sync_mirror.psync_grid_width_low_intensity_0;
   can_message.word0 = *(unsigned int*)&etm_can_pulse_sync_mirror.psync_afc_delay_low;
   ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
   MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
@@ -669,8 +706,8 @@ void ETMCanMasterUpdateSlaveStatus(ETMCanMessage* message_ptr) {
     // Clear the status received register
     *(unsigned int*)&board_status_received = 0x0000; 
     
-    // Reset T3 to start the next timer cycle
-    TMR3 = 0;
+    // Reset T5 to start the next timer cycle
+    TMR5 = 0;
   }
 }
 
@@ -751,7 +788,7 @@ void ETMCanMasterProcessLogData(void) {
 	  break;
 
 	default:
-	  //DPARKER add in some error counter
+	  local_can_errors.address_error++;
 	  break;
 	  
 	}
@@ -769,8 +806,8 @@ void ETMCanMasterProcessLogData(void) {
 	case ETM_CAN_DATA_LOG_REGISTER_DEFAULT_ERROR_1:
 	  debug_data_ptr->reset_count                = next_message.word3;
 	  debug_data_ptr->self_test_results          = *(ETMCanSelfTestRegister*)&next_message.word2;
-	  debug_data_ptr->reserved_0                 = next_message.word1;
-	  //debug_data_ptr->reserved_1                 = next_message.word0;  // This is now overwritten by the ECB to indicate if there is a connection
+	  debug_data_ptr->reserved_0                 = next_message.word1;  // This is RCON as of today
+	  debug_data_ptr->reserved_1                 = next_message.word0;  // unused at this time
 	  break;
 
 	case ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_0:
@@ -889,26 +926,34 @@ void ETMCanMasterProcessLogData(void) {
 	case ETM_CAN_DATA_LOG_REGISTER_AFC_FAST_POSITION:
 	  ptr_high_speed_data->afc_readback_current_position = next_message.word2;
 	  ptr_high_speed_data->afc_readback_target_position = next_message.word1;
+	  // unused word 0
+
+	  etm_can_afc_mirror.afc_readback_current_position = next_message.word2;
+	  etm_can_afc_mirror.afc_readback_target_position = next_message.word1;
 	  break;
 
 	case ETM_CAN_DATA_LOG_REGISTER_AFC_FAST_READINGS:
 	  ptr_high_speed_data->afc_readback_a_input = next_message.word2;
 	  ptr_high_speed_data->afc_readback_b_input = next_message.word1;
 	  ptr_high_speed_data->afc_readback_filtered_error_reading = next_message.word0;
+
+	  etm_can_afc_mirror.afc_readback_afc_a_input_reading = next_message.word2;
+	  etm_can_afc_mirror.afc_readback_afc_b_input_reading = next_message.word1;
+	  etm_can_afc_mirror.afc_readback_filtered_error_reading = next_message.word0;
 	  break;
 
 	case ETM_CAN_DATA_LOG_REGISTER_AFC_SLOW_SETTINGS:
 	  etm_can_afc_mirror.afc_readback_home_position = next_message.word3;
-	  etm_can_afc_mirror.afc_readback_offset = next_message.word2;
-	  etm_can_afc_mirror.afc_readback_current_position = next_message.word1;
+	  // unused word2
+	  // unused word1
 	  etm_can_afc_mirror.readback_aft_control_voltage = next_message.word0;
 	  break;
 
 
 	case ETM_CAN_DATA_LOG_REGISTER_MAGNETRON_MON_FAST_PREVIOUS_PULSE:
 	  // Update the high speed data table
-	  ptr_high_speed_data->magmon_readback_magnetron_low_energy_current = next_message.word2;
-	  ptr_high_speed_data->magmon_readback_magnetron_high_energy_current = next_message.word1;
+	  ptr_high_speed_data->magmon_readback_magnetron_low_energy_current = next_message.word2;  // This is the previous internal DAC Reading
+	  ptr_high_speed_data->magmon_readback_magnetron_high_energy_current = next_message.word1; // This is the previous external DAC Reading
 	  if (next_message.word0) {
 	    ptr_high_speed_data->status_bits.arc_this_pulse = 1;
 	  }
@@ -949,8 +994,9 @@ void ETMCanMasterProcessLogData(void) {
 	  break;
 
 	case ETM_CAN_DATA_LOG_REGISTER_COOLING_SLOW_FLOW_1:
-	  etm_can_cooling_mirror.cool_readback_spare_word_1 = next_message.word3;
-	  etm_can_cooling_mirror.cool_readback_spare_word_0 = next_message.word2;
+	  etm_can_cooling_mirror.cool_readback_bottle_count = next_message.word3;
+	  etm_can_cooling_mirror.cool_readback_pulses_available = ((next_message.word2 & 0xFF00) >> 8);
+	  etm_can_cooling_mirror.cool_readback_low_pressure_override_available = (next_message.word2 & 0x00FF);
 	  etm_can_cooling_mirror.cool_readback_hx_coolant_flow = next_message.word1;
 	  etm_can_cooling_mirror.cool_readback_spare_coolant_flow = next_message.word0;
 	  break;
@@ -1014,19 +1060,19 @@ void ETMCanMasterProcessLogData(void) {
 	  break;
 
 	case ETM_CAN_DATA_LOG_REGISTER_PULSE_SYNC_SLOW_TIMING_DATA_0:
-	  // DPARKER these are special because they need to be broken down into byte
+	  // DPARKER - WE have not defined anywhere to store this data
 	  break;
 
 	case ETM_CAN_DATA_LOG_REGISTER_PULSE_SYNC_SLOW_TIMING_DATA_1:
-	  // DPARKER these are special because they need to be broken down into byte
+	  // DPARKER - WE have not defined anywhere to store this data
 	  break;
 
 	case ETM_CAN_DATA_LOG_REGISTER_PULSE_SYNC_SLOW_TIMING_DATA_2:
-	  // DPARKER these are special because they need to be broken down into byte
+	  // DPARKER - WE have not defined anywhere to store this data
 	  break;
 
 	default:
-	  //DPARKER add some error
+	  local_can_errors.unknown_message_identifier++;
 	  break;
 	}
     }
@@ -1049,7 +1095,7 @@ void __attribute__((interrupt(__save__(CORCON,SR)), no_auto_psv)) _CXInterrupt(v
   
   pulse_time = global_data_A36507.millisecond_counter;
   pulse_time += ETMScaleFactor2((TMR5>>11),MACRO_DEC_TO_CAL_FACTOR_2(.8192),0);
-  if (_T5IF) {
+  if (_T2IF) {
     pulse_time += 10;
   }
 
@@ -1208,20 +1254,16 @@ void __attribute__((interrupt(__save__(CORCON,SR)), no_auto_psv)) _CXInterrupt(v
   
   if (CXINTFbits.ERRIF) {
     // There was some sort of CAN Error
-    // DPARKER - figure out which error and fix/reset
     local_can_errors.error_flag++;
     CXINTFbits.ERRIF = 0;
   } else {
     // FLASH THE CAN LED
-    if (PIN_CAN_OPERATION_LED) {
-      PIN_CAN_OPERATION_LED = 0;
+    if (ETMReadPinLatch(can_params.led)) {
+      ETMClearPin(can_params.led);
     } else {
-      PIN_CAN_OPERATION_LED = 1;
+      ETMSetPin(can_params.led);
     }
   }
-
-  //local_can_errors.CXEC_reg = CXEC;
-
 
   // Record the max TX counter
   if ((CXEC & 0xFF00) > (local_can_errors.CXEC_reg & 0xFF00)) {
@@ -1240,51 +1282,172 @@ void __attribute__((interrupt(__save__(CORCON,SR)), no_auto_psv)) _CXInterrupt(v
 
 
 void ETMCanMasterCheckForTimeOut(void) {
-  if (_T3IF) {
-    _T3IF = 0;
+  
+  // Ion Pump Board
+  if (board_status_received.ion_pump_board) {                           // The slave board is connected
+    if (board_com_fault.ion_pump_board) {                                      // The slave board has regained communication
+      SendToEventLog(LOG_ID_CONNECTED_ION_PUMP_BOARD);
+    }
+    board_com_fault.ion_pump_board = 0;
+    //_ION_PUMP_NOT_CONNECTED = 0;
+  }
+  
+  // Pulse Current Monitor Board
+  if (board_status_received.magnetron_current_board) {                  // The slave board is connected
+    if (board_com_fault.magnetron_current_board) {                                 // The slave board has regained communication
+      SendToEventLog(LOG_ID_CONNECTED_MAGNETRON_CURRENT_BOARD);
+    }
+    board_com_fault.magnetron_current_board = 0;
+    //_PULSE_CURRENT_NOT_CONNECTED = 0;
+  }
+  
+  // Pulse Sync Board
+  if (board_status_received.pulse_sync_board) {                         // The slave board is connected
+    if (board_com_fault.pulse_sync_board) {                                    // The slave board has regained communication
+      SendToEventLog(LOG_ID_CONNECTED_PULSE_SYNC_BOARD);
+    }
+    board_com_fault.pulse_sync_board = 0;
+    //_PULSE_SYNC_NOT_CONNECTED = 0;
+  }
+  
+  // HV Lambda Board
+  if (board_status_received.hv_lambda_board) {                          // The slave board is connected
+    if (board_com_fault.hv_lambda_board) {                                     // The slave board has regained communication
+      SendToEventLog(LOG_ID_CONNECTED_HV_LAMBDA_BOARD);
+    }
+    board_com_fault.hv_lambda_board = 0;
+    //_HV_LAMBDA_NOT_CONNECTED = 0;
+  }
+  
+  // AFC Board
+  if (board_status_received.afc_board) {                                // The slave board is connected
+    if (board_com_fault.afc_board) {                                           // The slave board has regained communication
+      SendToEventLog(LOG_ID_CONNECTED_AFC_BOARD);
+    }
+    board_com_fault.afc_board = 0;
+    //_AFC_NOT_CONNECTED = 0;
+  }
+  
+  // Cooling Interface
+  if (board_status_received.cooling_interface_board) {                  // The slave board is connected
+    if (board_com_fault.cooling_interface_board) {                                       // The slave board has regained communication
+      SendToEventLog(LOG_ID_CONNECTED_COOLING_BOARD);
+    }
+    board_com_fault.cooling_interface_board = 0;
+    //_COOLING_NOT_CONNECTED = 0;
+  }
+  
+  // Heater Magnet Supply
+  if (board_status_received.heater_magnet_board) {                      // The slave board is connected
+    if (board_com_fault.heater_magnet_board) {                                 // The slave board has regained communication
+      SendToEventLog(LOG_ID_CONNECTED_HEATER_MAGNET_BOARD);
+    }
+    board_com_fault.heater_magnet_board = 0;
+    //_HEATER_MAGNET_NOT_CONNECTED = 0;
+  }
+  
+  // Gun Driver
+  if (board_status_received.gun_driver_board) {                         // The slave board is not connected
+    if (board_com_fault.gun_driver_board) {                                    // The slave board has regained communication
+      SendToEventLog(LOG_ID_CONNECTED_GUN_DRIVER_BOARD);
+    }
+    board_com_fault.gun_driver_board = 0;
+    //_GUN_DRIVER_NOT_CONNECTED = 0;
+  }
+  
+  if (_T5IF) {
+    // At least one board failed to communicate durring the T5 period
+    _T5IF = 0;
     local_can_errors.timeout++;
     etm_can_persistent_data.can_timeout_count = local_can_errors.timeout;
     _CONTROL_CAN_COM_LOSS = 1;
-    
 
-    // Indicate which board(s) are not connected
-    _ION_PUMP_NOT_CONNECTED        = !board_status_received.ion_pump_board;
-    _PULSE_CURRENT_NOT_CONNECTED   = !board_status_received.magnetron_current_board;
-    _PULSE_SYNC_NOT_CONNECTED      = !board_status_received.pulse_sync_board;
-    _HV_LAMBDA_NOT_CONNECTED       = !board_status_received.hv_lambda_board;
-    _AFC_NOT_CONNECTED             = !board_status_received.afc_board;
-    _COOLING_NOT_CONNECTED         = !board_status_received.cooling_interface_board;
-    _HEATER_MAGNET_NOT_CONNECTED   = !board_status_received.heater_magnet_board;
-    _GUN_DRIVER_NOT_CONNECTED      = !board_status_received.gun_driver_board;
 
-    if (!board_status_received.ion_pump_board) {
+    // ---------------- Set the state _*_NOT_CONNECTED bit and log when the board disconnects and reconnects -------------- //
+
+    // Ion Pump Board
+    if (!board_status_received.ion_pump_board) {                          // The slave board is not connected
       global_data_A36507.no_connect_count_ion_pump_board++;
+      if (!board_com_fault.ion_pump_board) {                              // The slave board has lost communication
+	SendToEventLog(LOG_ID_NOT_CONNECTED_ION_PUMP_BOARD);
+      }
+      board_com_fault.ion_pump_board = 1;
+      //_ION_PUMP_NOT_CONNECTED = 1;
     }
-    if (!board_status_received.magnetron_current_board) {
+    
+    // Pulse Current Monitor Board
+    if (!board_status_received.magnetron_current_board) {                 // The slave board is not connected
       global_data_A36507.no_connect_count_magnetron_current_board++;
+      if (!board_com_fault.magnetron_current_board) {                                // The slave board has lost communication
+	SendToEventLog(LOG_ID_NOT_CONNECTED_MAGNETRON_CURRENT_BOARD);
+      }
+      board_com_fault.magnetron_current_board = 1;
+      //_PULSE_CURRENT_NOT_CONNECTED = 1;
     }
-    if (!board_status_received.pulse_sync_board) {
-      global_data_A36507.no_connect_count_pulse_sync_board++;
-    }
-    if (!board_status_received.hv_lambda_board) {
-      global_data_A36507.no_connect_count_hv_lambda_board++;
-    }
-    if (!board_status_received.afc_board) {
-      global_data_A36507.no_connect_count_afc_board++;
-    }
-    if (!board_status_received.cooling_interface_board) {
-      global_data_A36507.no_connect_count_cooling_interface_board++;
-    }
-    if (!board_status_received.heater_magnet_board) {
-      global_data_A36507.no_connect_count_heater_magnet_board++;
-    }
-    if (!board_status_received.gun_driver_board) {
-      global_data_A36507.no_connect_count_gun_driver_board++;
-    }
-    
 
-    etm_can_ethernet_board_data.status_received_register = 0x0000;
-    
+    // Pulse Sync Board
+    if (!board_status_received.pulse_sync_board) {                        // The slave board is not connected
+      global_data_A36507.no_connect_count_pulse_sync_board++;
+      if (!board_com_fault.pulse_sync_board) {                                   // The slave board has lost communication
+	SendToEventLog(LOG_ID_NOT_CONNECTED_PULSE_SYNC_BOARD);
+      }
+      board_com_fault.pulse_sync_board = 1;
+      //_PULSE_SYNC_NOT_CONNECTED = 1;
+    }
+
+    // HV Lambda Board
+    if (!board_status_received.hv_lambda_board) {                         // The slave board is not connected
+      global_data_A36507.no_connect_count_hv_lambda_board++;
+      if (!board_com_fault.hv_lambda_board) {                                    // The slave board has lost communication
+	SendToEventLog(LOG_ID_NOT_CONNECTED_HV_LAMBDA_BOARD);
+      }
+      board_com_fault.hv_lambda_board = 1;
+      //_HV_LAMBDA_NOT_CONNECTED = 1;
+    }
+
+    // AFC Board
+    if (!board_status_received.afc_board) {                               // The slave board is not connected
+      global_data_A36507.no_connect_count_afc_board++;
+      if (!board_com_fault.afc_board) {                                   // The slave board has lost communication
+	SendToEventLog(LOG_ID_NOT_CONNECTED_AFC_BOARD);
+      }
+      board_com_fault.afc_board = 1;
+      //_AFC_NOT_CONNECTED = 1;
+    }    
+
+    // Cooling Interface
+    if (!board_status_received.cooling_interface_board) {                 // The slave board is not connected
+      global_data_A36507.no_connect_count_cooling_interface_board++;
+      if (!board_com_fault.cooling_interface_board) {                                      // The slave board has lost communication
+	SendToEventLog(LOG_ID_NOT_CONNECTED_COOLING_BOARD);
+      }
+      board_com_fault.cooling_interface_board = 1;
+      //_COOLING_NOT_CONNECTED = 1;
+    }
+
+    // Heater Magnet Supply
+    if (!board_status_received.heater_magnet_board) {                     // The slave board is not connected
+      global_data_A36507.no_connect_count_heater_magnet_board++;
+      if (!board_com_fault.heater_magnet_board) {                                // The slave board has lost communication
+	SendToEventLog(LOG_ID_NOT_CONNECTED_HEATER_MAGNET_BOARD);
+      }
+      board_com_fault.heater_magnet_board = 1;
+      //_HEATER_MAGNET_NOT_CONNECTED = 1;
+    }
+
+    // Gun Driver
+    if (!board_status_received.gun_driver_board) {                        // The slave board is not connected
+      global_data_A36507.no_connect_count_gun_driver_board++;
+      if (!board_com_fault.gun_driver_board) {                                   // The slave board has lost communication
+	SendToEventLog(LOG_ID_NOT_CONNECTED_GUN_DRIVER_BOARD);
+      }
+      board_com_fault.gun_driver_board = 1;
+      //_GUN_DRIVER_NOT_CONNECTED = 1;
+    }
+
+    // Clear the status received register
+    *(unsigned int*)&board_status_received = 0x0000;
+
   }
 }
 
@@ -1432,4 +1595,17 @@ void ETMCanMasterClearDebug(void) {
   _BOR = 0;
   _POR = 0;
   _SWR = 0;
+
+}
+
+
+
+void SendToEventLog(unsigned int log_id) {
+  event_log.event_data[event_log.write_index].event_number = global_data_A36507.event_log_counter;
+  event_log.event_data[event_log.write_index].event_time   = global_data_A36507.time_seconds_now;
+  event_log.event_data[event_log.write_index].event_id     = log_id;
+  event_log.write_index++;
+  event_log.write_index &= 0x7F;
+  global_data_A36507.event_log_counter++;
+  // DPARKER need to check the EEPROM and TCP locations and advance them as nesseasry so that we don't pass them when advancing the write_index
 }
