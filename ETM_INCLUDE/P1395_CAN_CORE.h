@@ -771,9 +771,23 @@ typedef struct {
 #endif
 */
 
+
+// Can interrupt ISR for slave modules
+#define BUFFER_FULL_BIT    0x0080
+#define FILTER_SELECT_BIT  0x0001
+#define TX_REQ_BIT         0x0008
+#define RX0_INT_FLAG_BIT   0xFFFE
+#define RX1_INT_FLAG_BIT   0xFFFD
+#define ERROR_FLAG_BIT     0x0020
+  
+
+
+
 //#define MacroETMCanCheckTXBuffer() if (!CXTX0CONbits.TXREQ) { _CXIF = 1; }
 // DPARKER this macro needs to be extended to work with both CAN PORTS
-#define MacroETMCanCheckTXBuffer() Nop()
+#define MacroETMCanCheckTXBuffer() if (!(*CXTX0CON_ptr & TX_REQ_BIT)) { if (_C1IE) {_C1IF = 1;} else {_C2IF = 1;}}
+
+
 
 
 #define CAN_PORT_2  2

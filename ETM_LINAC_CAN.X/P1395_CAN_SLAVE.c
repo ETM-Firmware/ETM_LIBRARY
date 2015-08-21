@@ -801,15 +801,6 @@ void ETMCanSlaveClearDebug(void) {
 }
 
 
-// Can interrupt ISR for slave modules
-#define BUFFER_FULL_BIT    0x0080
-#define FILTER_SELECT_BIT  0x0001
-#define TX_REQ_BIT         0x0008
-#define RX0_INT_FLAG_BIT   0xFFFE
-#define RX1_INT_FLAG_BIT   0xFFFD
-#define ERROR_FLAG_BIT     0x0020
-  
-
 void DoCanInterrupt(void);
 
 void __attribute__((interrupt(__save__(CORCON,SR)), no_auto_psv)) _C1Interrupt(void) {
