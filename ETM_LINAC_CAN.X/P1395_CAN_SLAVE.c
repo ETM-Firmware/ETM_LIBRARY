@@ -3,7 +3,7 @@
 #include "P1395_CAN_SLAVE.h"
 #include "ETM.h"
 
-const unsigned int p1395_can_slave_version = 0x0010;
+const unsigned int p1395_can_slave_version = 0x0011;
 
 
 // ----------- Can Timers T4 & T5 Configuration ----------- //
@@ -108,12 +108,21 @@ void ETMCanSlaveDoSync(ETMCanMessage* message_ptr);
   This process the sync message from the ECB and loads it into RAM
 */
 
-
 void ETMCanSlaveClearDebug(void);
 /*
   This zeros all the debug data.
   It is called when the _SYNC_CONTROL_CLEAR_DEBUG_DATA bit is set
 */
+
+void ETMCanSlaveLogData(unsigned int packet_id, unsigned int word3, unsigned int word2, unsigned int word1, unsigned int word0);
+/*
+  This is a ETMCanSlaveTimedTransmit helper function.
+  It is used to generate the slave logging messages
+*/
+
+
+
+
 
 
 // ------------------- Global Variables --------------------- //
@@ -122,20 +131,30 @@ ETMCanMessageBuffer etm_can_tx_message_buffer;
 
 unsigned int etm_can_next_pulse_level;
 unsigned int etm_can_next_pulse_count;
-
+unsigned int etm_can_slave_com_loss;
 
 // Public Debug and Status registers
-ETMCanSystemDebugData local_debug_data;
-ETMCanStatusRegister  etm_can_status_register;
-ETMCanAgileConfig     etm_can_my_configuration;
-ETMCanCanStatus       local_can_errors;
-ETMCanSyncMessage     etm_can_sync_message;
+unsigned int              etm_can_board_data[24];
+ETMCanStatusRegister      etm_can_status_register;
+ETMCanStandardLoggingData etm_can_log_data;
+ETMCanSyncMessage         etm_can_sync_message;
 
 
 
 // -------------------- local variables -------------------------- //
 unsigned int slave_data_log_index;
+unsigned int slave_data_log_sub_timer;
 unsigned int previous_ready_status;  // DPARKER - Need better name
+
+// ---------- Pointers to CAN stucutres so that we can use CAN1 or CAN2
+volatile unsigned int *CXEC_ptr;
+volatile unsigned int *CXINTF_ptr;
+volatile unsigned int *CXRX0CON_ptr;
+volatile unsigned int *CXRX1CON_ptr;
+volatile unsigned int *CXTX0CON_ptr;
+volatile unsigned int *CXTX1CON_ptr;
+volatile unsigned int *CXTX2CON_ptr;
+
 
 typedef struct {
   unsigned int reset_count;
@@ -153,11 +172,7 @@ TYPE_CAN_PARAMETERS can_params;
  
 
 
-
-
-
-
-void ETMCanSlaveInitialize(unsigned long fcy, unsigned int etm_can_address, unsigned long can_operation_led, unsigned int can_interrupt_priority) {
+void ETMCanSlaveInitialize(unsigned int requested_can_port, unsigned long fcy, unsigned int etm_can_address, unsigned long can_operation_led, unsigned int can_interrupt_priority) {
   unsigned long timer_period_value;
 
   if (can_interrupt_priority > 7) {
@@ -167,93 +182,22 @@ void ETMCanSlaveInitialize(unsigned long fcy, unsigned int etm_can_address, unsi
   can_params.address = etm_can_address;
   can_params.led = can_operation_led;
 
-
-  //can_params.fcy = fcy;
-  //can_params.can_interrupt_priority = can_interrupt_priority;
-
   etm_can_persistent_data.reset_count++;
   
   _SYNC_CONTROL_WORD = 0;
-  etm_can_sync_message.sync_1 = 1;
-  etm_can_sync_message.sync_2 = 2;
-  etm_can_sync_message.sync_3 = 3;
+  etm_can_sync_message.sync_1_ecb_state_for_fault_logic = 0;
+  etm_can_sync_message.sync_2 = 0;
+  etm_can_sync_message.sync_3 = 0;
   
-  local_debug_data.reset_count = etm_can_persistent_data.reset_count;
-  local_can_errors.timeout = etm_can_persistent_data.can_timeout_count;
+  etm_can_slave_com_loss = 0;
 
+  etm_can_log_data.reset_count = etm_can_persistent_data.reset_count;
+  etm_can_log_data.can_timeout = etm_can_persistent_data.can_timeout_count;
 
-  _CXIE = 0;
-  _CXIF = 0;
-  _CXIP = can_interrupt_priority;
-  
-  CXINTF = 0;
-  
-  CXINTEbits.RX0IE = 1; // Enable RXB0 interrupt
-  CXINTEbits.RX1IE = 1; // Enable RXB1 interrupt
-  CXINTEbits.TX0IE = 1; // Enable TXB0 interrupt
-  CXINTEbits.ERRIE = 1; // Enable Error interrupt
-
-  // DPARKER - Zero all the counters in the error structure.
+  ETMCanSlaveClearDebug();
   
   ETMCanBufferInitialize(&etm_can_rx_message_buffer);
   ETMCanBufferInitialize(&etm_can_tx_message_buffer);
-
-  
-  // ---------------- Set up CAN Control Registers ---------------- //
-  
-  // Set Baud Rate
-  CXCTRL = CXCTRL_CONFIG_MODE_VALUE;
-  while(CXCTRLbits.OPMODE != 4);
-
-
-  if (fcy == 25000000) {
-    CXCFG1 = CXCFG1_25MHZ_FCY_VALUE;    
-  } else if (fcy == 20000000) {
-    CXCFG1 = CXCFG1_20MHZ_FCY_VALUE;    
-  } else if (fcy == 10000000) {
-    CXCFG1 = CXCFG1_10MHZ_FCY_VALUE;    
-  } else {
-    // If you got here we can't configure the can module
-    // DPARKER WHAT TO DO HERE
-  }
-  
-
-  CXCFG2 = CXCFG2_VALUE;
-  
-  
-  // Load Mask registers for RX0 and RX1
-  CXRXM0SID = ETM_CAN_SLAVE_RX0_MASK;
-  CXRXM1SID = ETM_CAN_SLAVE_RX1_MASK;
-
-  // Load Filter registers
-  CXRXF0SID = ETM_CAN_MSG_LVL_FILTER;
-  CXRXF1SID = ETM_CAN_MSG_SYNC_FILTER;
-  CXRXF2SID = (ETM_CAN_MSG_SLAVE_FILTER | (can_params.address << 3));
-  CXRXF3SID = ETM_CAN_MSG_FILTER_OFF;
-  CXRXF4SID = ETM_CAN_MSG_FILTER_OFF;
-  CXRXF5SID = ETM_CAN_MSG_FILTER_OFF;
-
-  // Set Transmitter Mode
-  CXTX0CON = CXTXXCON_VALUE_LOW_PRIORITY;
-  CXTX1CON = CXTXXCON_VALUE_MEDIUM_PRIORITY;
-  CXTX2CON = CXTXXCON_VALUE_HIGH_PRIORITY;
-
-  CXTX0DLC = CXTXXDLC_VALUE;
-  CXTX1DLC = CXTXXDLC_VALUE;
-  CXTX2DLC = CXTXXDLC_VALUE;
-
-  
-  // Set Receiver Mode
-  CXRX0CON = CXRXXCON_VALUE;
-  CXRX1CON = CXRXXCON_VALUE;
-  
-  // Switch to normal operation
-  CXCTRL = CXCTRL_OPERATE_MODE_VALUE;
-  while(CXCTRLbits.OPMODE != 0);
-  
-  // Enable Can interrupt
-  _CXIE = 1;
-  
   
   // Configure T4
   timer_period_value = fcy;
@@ -263,7 +207,6 @@ void ETMCanSlaveInitialize(unsigned long fcy, unsigned int etm_can_address, unsi
     timer_period_value = 0xFFFF;
   }
   T4CON = (T4_OFF & T4_IDLE_CON & T4_GATE_OFF & T4_PS_1_256 & T4_32BIT_MODE_OFF & T4_SOURCE_INT);
-  //PR4 = (unsigned int)(10000000/256/T4_FREQUENCY_HZ);  
   PR4 = timer_period_value;  
   TMR4 = 0;
   _T4IF = 0;
@@ -278,50 +221,114 @@ void ETMCanSlaveInitialize(unsigned long fcy, unsigned int etm_can_address, unsi
     timer_period_value = 0xFFFF;
   }
   T5CON = (T5_OFF & T5_IDLE_CON & T5_GATE_OFF & T5_PS_1_256 & T5_SOURCE_INT);
-  //PR5 = (unsigned int)(10000000/256/T5_FREQUENCY_HZ);
   PR5 = timer_period_value;
   _T5IF = 0;
   _T5IE = 0;
   T5CONbits.TON = 1;
 
   ETMPinTrisOutput(can_params.led);
+  
+  if (requested_can_port != CAN_PORT_2) {
+    // Use CAN1
+    
+    CXEC_ptr     = &C1EC;
+    CXINTF_ptr   = &C1INTF;
+    CXRX0CON_ptr = &C1RX0CON;
+    CXRX1CON_ptr = &C1RX1CON;
+    CXTX0CON_ptr = &C1TX0CON;
+    CXTX1CON_ptr = &C1TX1CON;
+    CXTX2CON_ptr = &C1TX2CON;
+
+    _C1IE = 0;
+    _C1IF = 0;
+    _C1IP = can_interrupt_priority;
+    
+    C1INTF = 0;
+    
+    C1INTEbits.RX0IE = 1; // Enable RXB0 interrupt
+    C1INTEbits.RX1IE = 1; // Enable RXB1 interrupt
+    C1INTEbits.TX0IE = 1; // Enable TXB0 interrupt
+    C1INTEbits.ERRIE = 1; // Enable Error interrupt
+  
+    // ---------------- Set up CAN Control Registers ---------------- //
+    
+    // Set Baud Rate
+    C1CTRL = CXCTRL_CONFIG_MODE_VALUE;
+    while(C1CTRLbits.OPMODE != 4);
+    
+    if (fcy == 25000000) {
+      C1CFG1 = CXCFG1_25MHZ_FCY_VALUE;    
+    } else if (fcy == 20000000) {
+      C1CFG1 = CXCFG1_20MHZ_FCY_VALUE;    
+    } else if (fcy == 10000000) {
+      C1CFG1 = CXCFG1_10MHZ_FCY_VALUE;    
+    } else {
+      // If you got here we can't configure the can module
+      // DPARKER WHAT TO DO HERE
+    }
+    
+    C1CFG2 = CXCFG2_VALUE;
+    
+    
+    // Load Mask registers for RX0 and RX1
+    C1RXM0SID = ETM_CAN_SLAVE_RX0_MASK;
+    C1RXM1SID = ETM_CAN_SLAVE_RX1_MASK;
+    
+    // Load Filter registers
+    C1RXF0SID = ETM_CAN_SLAVE_MSG_FILTER_RF0;
+    C1RXF1SID = ETM_CAN_SLAVE_MSG_FILTER_RF1;
+    C1RXF2SID = (ETM_CAN_SLAVE_MSG_FILTER_RF2 | (can_params.address << 2));
+    //C1RXF3SID = ETM_CAN_MSG_FILTER_OFF;
+    //C1RXF4SID = ETM_CAN_MSG_FILTER_OFF;
+    //C1RXF5SID = ETM_CAN_MSG_FILTER_OFF;
+    
+    // Set Transmitter Mode
+    C1TX0CON = CXTXXCON_VALUE_LOW_PRIORITY;
+    C1TX1CON = CXTXXCON_VALUE_MEDIUM_PRIORITY;
+    C1TX2CON = CXTXXCON_VALUE_HIGH_PRIORITY;
+    
+    C1TX0DLC = CXTXXDLC_VALUE;
+    C1TX1DLC = CXTXXDLC_VALUE;
+    C1TX2DLC = CXTXXDLC_VALUE;
+    
+    
+    // Set Receiver Mode
+    C1RX0CON = CXRXXCON_VALUE;
+    C1RX1CON = CXRXXCON_VALUE;
+    
+
+    // Switch to normal operation
+    C1CTRL = CXCTRL_OPERATE_MODE_VALUE;
+    while(C1CTRLbits.OPMODE != 0);
+    
+    // Enable Can interrupt
+    _C1IE = 1;
+    _C2IE = 0;
+    
+  } else {
+    // Use CAN2
+  }
 }
 
 
 void ETMCanSlaveLoadConfiguration(unsigned long agile_id, unsigned int agile_dash, unsigned int firmware_agile_rev, unsigned int firmware_branch, unsigned int firmware_minor_rev) {
 
-  etm_can_my_configuration.agile_number_low_word = (agile_id & 0xFFFF);
+  etm_can_log_data.agile_number_low_word = (agile_id & 0xFFFF);
   agile_id >>= 16;
-  etm_can_my_configuration.agile_number_high_word = agile_id;
-  etm_can_my_configuration.agile_dash = agile_dash;
-  etm_can_my_configuration.firmware_branch = firmware_branch;
-  etm_can_my_configuration.firmware_major_rev = firmware_agile_rev;
-  etm_can_my_configuration.firmware_minor_rev = firmware_minor_rev;
+  etm_can_log_data.agile_number_high_word = agile_id;
+  etm_can_log_data.agile_dash = agile_dash;
+  etm_can_log_data.firmware_branch = firmware_branch;
+  etm_can_log_data.firmware_major_rev = firmware_agile_rev;
+  etm_can_log_data.firmware_minor_rev = firmware_minor_rev;
 
   // Load default values for agile rev and serial number at this time
   // Need some way to update these with the real numbers
-  etm_can_my_configuration.agile_rev_ascii = 'A';
-  etm_can_my_configuration.serial_number = 0;
+  etm_can_log_data.agile_rev_ascii = 'A';
+  etm_can_log_data.serial_number = 0;
 }
 
 
 void ETMCanSlaveDoCan(void) {
- // Record the max TX counter
-  if ((CXEC & 0xFF00) > (local_can_errors.CXEC_reg & 0xFF00)) {
-    local_can_errors.CXEC_reg &= 0x00FF;
-    local_can_errors.CXEC_reg += (CXEC & 0xFF00);
-  }
-
-  // Record the max RX counter
-  if ((CXEC & 0x00FF) > (local_can_errors.CXEC_reg & 0x00FF)) {
-    local_can_errors.CXEC_reg &= 0xFF00;
-    local_can_errors.CXEC_reg += (CXEC & 0x00FF);
-  }
-
-  // Record the RCON state
-  local_debug_data.reserved_1 = RCON;
-  local_debug_data.reserved_0 = 0x0000;
-
   ETMCanSlaveProcessMessage();
   ETMCanSlaveTimedTransmit();
   ETMCanSlaveCheckForTimeOut();
@@ -331,28 +338,35 @@ void ETMCanSlaveDoCan(void) {
   }
 
 
-  local_debug_data.can_bus_error_count = local_can_errors.timeout;
-  local_debug_data.can_bus_error_count += local_can_errors.message_tx_buffer_overflow;
-  local_debug_data.can_bus_error_count += local_can_errors.message_rx_buffer_overflow;
-  local_debug_data.can_bus_error_count += local_can_errors.data_log_rx_buffer_overflow;
-  local_debug_data.can_bus_error_count += local_can_errors.address_error;
-  local_debug_data.can_bus_error_count += local_can_errors.invalid_index;
-  local_debug_data.can_bus_error_count += local_can_errors.unknown_message_identifier;
+  // Log debugging information
+  etm_can_log_data.RCON_value = RCON;
+  
+  // Record the max TX counter
+  if ((*CXEC_ptr & 0xFF00) > (etm_can_log_data.CXEC_reg_max & 0xFF00)) {
+    etm_can_log_data.CXEC_reg_max &= 0x00FF;
+    etm_can_log_data.CXEC_reg_max += (*CXEC_ptr & 0xFF00);
+  }
+  
+  // Record the max RX counter
+  if ((*CXEC_ptr & 0x00FF) > (etm_can_log_data.CXEC_reg_max & 0x00FF)) {
+    etm_can_log_data.CXEC_reg_max &= 0xFF00;
+    etm_can_log_data.CXEC_reg_max += (*CXEC_ptr & 0x00FF);
+  }
 }
 
 
 void ETMCanSlavePulseSyncSendNextPulseLevel(unsigned int next_pulse_level, unsigned int next_pulse_count) {
   ETMCanMessage message;
-  message.identifier = ETM_CAN_MSG_LVL_TX | (can_params.address << 3); 
+  message.identifier = ETM_CAN_MSG_LVL_TX | (can_params.address << 2); 
   message.word0      = next_pulse_count;
   if (next_pulse_level) {
     message.word1    = 0xFFFF;
   } else {
     message.word1    = 0;
   }
-  local_debug_data.debug_D = message.word1;
-  ETMCanTXMessage(&message, &CXTX2CON);
-  local_can_errors.tx_2++;
+
+  ETMCanTXMessage(&message, CXTX2CON_ptr);
+  etm_can_log_data.can_tx_2++;
 }
 
 
@@ -360,38 +374,29 @@ void ETMCanSlaveProcessMessage(void) {
   ETMCanMessage next_message;
   while (ETMCanBufferNotEmpty(&etm_can_rx_message_buffer)) {
     ETMCanReadMessageFromBuffer(&etm_can_rx_message_buffer, &next_message);
-    
-    if ((next_message.identifier & 0b0000000001111000) != (can_params.address << 3)) {
-      // It was not addressed to this board
-      local_can_errors.address_error++;
-    } else if (next_message.identifier == (ETM_CAN_MSG_CMD_RX | (can_params.address << 3))) {
-      ETMCanSlaveExecuteCMD(&next_message);      
-    } else if (next_message.identifier == (ETM_CAN_MSG_REQUEST_RX | (can_params.address << 3))) {
-      ETMCanSlaveReturnCalibrationPair(&next_message);
-    } else {
-      local_can_errors.unknown_message_identifier++;
-    } 
+    ETMCanSlaveExecuteCMD(&next_message);      
   }
   
-  local_can_errors.message_tx_buffer_overflow = etm_can_tx_message_buffer.message_overwrite_count;
-  local_can_errors.message_rx_buffer_overflow = etm_can_rx_message_buffer.message_overwrite_count;
+  etm_can_log_data.can_tx_buf_overflow = etm_can_tx_message_buffer.message_overwrite_count;
+  etm_can_log_data.can_rx_buf_overflow = etm_can_rx_message_buffer.message_overwrite_count;
 }
 
 
 
 void ETMCanSlaveExecuteCMD(ETMCanMessage* message_ptr) {
   /*
-    Register allocations
+    CMD Index allocations
     0xZ000 -> 0xZ0FF  -> Common Slave Commands and Set Values    - ETMCanSlaveExecuteCMDCommon()
-    0xZ100 -> 0xZ1FF  -> Calibration Read/Write Registers        - ETMCanSlaveSetCalibrationPair()
+    0xZ100 -> 0xZ1FF  -> Calibration Write Registers             - ETMCanSlaveSetCalibrationPair()
     0xZ200 -> 0xZ3FF  -> Slave Specific Commands and Set Values  - ETMCanSlaveExecuteCMD()
+    0xZ900 -> 0xZ9FF  -> Calibration Read Registers              - ETMCanSlaveReturnCalibrationPair()
   */
   unsigned int index_word;
   index_word = message_ptr->word3;
   
   if ((index_word & 0xF000) != (can_params.address << 12)) {
     // The index is not addressed to this board
-    local_can_errors.invalid_index++;
+    etm_can_log_data.can_invalid_index++;
     return;
   }
   
@@ -406,9 +411,12 @@ void ETMCanSlaveExecuteCMD(ETMCanMessage* message_ptr) {
   } else if (index_word <= 0x3FF) {
     // It is a board specific command
     ETMCanSlaveExecuteCMDBoardSpecific(message_ptr);
+  } else if ((index_word >= 0x900) && (index_word <= 0x9FF)) {
+    // It is Calibration Pair Request
+    ETMCanSlaveReturnCalibrationPair(message_ptr);
   } else {
     // It was not a command ID
-    local_can_errors.invalid_index++;
+    etm_can_log_data.can_invalid_index++;
   }
 }
 
@@ -431,7 +439,7 @@ void ETMCanSlaveExecuteCMDCommon(ETMCanMessage* message_ptr) {
  
   default:
     // The default command was not recognized 
-    local_can_errors.invalid_index++;
+    etm_can_log_data.can_invalid_index++;
     break;
   }
 }
@@ -451,23 +459,11 @@ void ETMCanSlaveReturnCalibrationPair(ETMCanMessage* message_ptr) {
   unsigned int index_word;
   index_word = message_ptr->word3;
   
-  if ((index_word & 0xF000) != (can_params.address << 12)) {
-    // The index is not addressed to this board
-    local_can_errors.invalid_index++;
-    return;
-  }
-  
   index_word &= 0x0FFF;
-  
-  if ((index_word < 0x0900) || (index_word >= 0x0A00)) {
-    // this is not a valid calibration request index
-    local_can_errors.invalid_index++;
-    return;
-  }
   
   index_word -= 0x0800;
   // The request is valid, return the data stored in eeprom
-  return_msg.identifier = ETM_CAN_MSG_SET_2_TX | (can_params.address << 3);
+  return_msg.identifier = ETM_CAN_MSG_RTN_TX | (can_params.address << 2);
   return_msg.word3 = message_ptr->word3 - 0x0800;
   return_msg.word2 = 0;
   return_msg.word1 = ETMEEPromReadWord(index_word + 1);
@@ -479,6 +475,25 @@ void ETMCanSlaveReturnCalibrationPair(ETMCanMessage* message_ptr) {
 }
 
 
+void ETMCanSlaveLogBoardData(unsigned int data_register) {
+  unsigned int log_register;
+  if (data_register >= 6) {
+    return;
+  }
+  log_register = data_register;
+  log_register <<= 4;
+  log_register |= can_params.address;
+  
+  data_register *= 4;
+  
+  ETMCanSlaveLogData(log_register,
+		     etm_can_board_data[data_register + 3],
+		     etm_can_board_data[data_register + 2],
+		     etm_can_board_data[data_register + 1],
+		     etm_can_board_data[data_register]);
+		     
+}
+
 void ETMCanSlaveTimedTransmit(void) {
   // Sends the debug information up as log data  
   if (_T4IF) {
@@ -486,122 +501,137 @@ void ETMCanSlaveTimedTransmit(void) {
     _T4IF = 0;
     
     slave_data_log_index++;
-    slave_data_log_index &= 0xF;
+    if (slave_data_log_index >= 10) {
+      slave_data_log_index = 0;
+      
+      slave_data_log_sub_timer++;
+      slave_data_log_sub_timer &= 0b11;
+    }
     
     ETMCanSlaveSendStatus(); // Send out the status every 100mS
-    
+
+    // Also send out one bit of logging data every 100mS
     switch (slave_data_log_index) 
       {
       case 0x0:
-	ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_ERROR_0, 
-			   local_debug_data.i2c_bus_error_count, 
-			   local_debug_data.spi_bus_error_count,
-			   local_debug_data.can_bus_error_count,
-			   local_debug_data.scale_error_count);      
+	ETMCanSlaveLogBoardData(0);
 	break;
 	
       case 0x1:
-	ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_ERROR_1, 
-			   local_debug_data.reset_count, 
-			   *(unsigned int*)&local_debug_data.self_test_results, 
-			   local_debug_data.reserved_1, 
-			   local_debug_data.reserved_0);
+	ETMCanSlaveLogBoardData(1);
 	break;
-	
+
       case 0x2:
-	ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_0,
-			   local_debug_data.debug_0, 
-			   local_debug_data.debug_1,
-			   local_debug_data.debug_2,
-			   local_debug_data.debug_3);  
+	ETMCanSlaveLogBoardData(2);
 	break;
-	
+
       case 0x3:
-	ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_1,
-			   local_debug_data.debug_4,
-			   local_debug_data.debug_5,
-			   local_debug_data.debug_6,
-			   local_debug_data.debug_7);
+	ETMCanSlaveLogBoardData(3);
 	break;
-	
+
       case 0x4:
-	ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_2,
-			   local_debug_data.debug_8,
-			   local_debug_data.debug_9,
-			   local_debug_data.debug_A,
-			   local_debug_data.debug_B);
+	ETMCanSlaveLogBoardData(4);
 	break;
-	
+
       case 0x5:
-	ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_3,
-			   local_debug_data.debug_C,
-			   local_debug_data.debug_D,
-			   local_debug_data.debug_E,
-			   local_debug_data.debug_F);
+	ETMCanSlaveLogBoardData(5);
 	break;
-	
+      
       case 0x6:
-	ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CAN_ERROR_0,
-			   local_can_errors.CXEC_reg,
-			   local_can_errors.error_flag,
-			   local_can_errors.tx_1,
-			   local_can_errors.tx_2);
+	if ((slave_data_log_sub_timer == 0) || (slave_data_log_sub_timer == 2)) {
+	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_0,
+			     etm_can_log_data.debug_0,
+			     etm_can_log_data.debug_1,
+			     etm_can_log_data.debug_2,
+			     etm_can_log_data.debug_3);
+	} else {
+	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_1,
+			     etm_can_log_data.debug_4,
+			     etm_can_log_data.debug_5,
+			     etm_can_log_data.debug_6,
+			     etm_can_log_data.debug_7);
+	}
 	break;
-	
+
       case 0x7:
-	ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CAN_ERROR_1,
-			   local_can_errors.rx_0_filt_0,
-			   local_can_errors.rx_0_filt_1,
-			   local_can_errors.rx_1_filt_2,
-			   local_can_errors.isr_entered);
+	if ((slave_data_log_sub_timer == 0) || (slave_data_log_sub_timer == 2)) {
+	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_2,
+			     etm_can_log_data.debug_8,
+			     etm_can_log_data.debug_9,
+			     etm_can_log_data.debug_A,
+			     etm_can_log_data.debug_B);
+	} else {
+	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_3,
+			     etm_can_log_data.debug_C,
+			     etm_can_log_data.debug_D,
+			     etm_can_log_data.debug_E,
+			     etm_can_log_data.debug_F);
+	}
 	break;
-	
+
       case 0x8:
-	ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CAN_ERROR_2,
-			   local_can_errors.unknown_message_identifier,
-			   local_can_errors.invalid_index,
-			   local_can_errors.address_error,
-			   local_can_errors.tx_0);
+	if (slave_data_log_sub_timer == 0) {
+	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CAN_ERROR_0,
+			     etm_can_log_data.can_tx_0,
+			     etm_can_log_data.can_tx_1,
+			     etm_can_log_data.can_tx_2,
+			     etm_can_log_data.CXEC_reg_max);
+			     
+
+
+
+	} else if (slave_data_log_sub_timer == 1) {
+	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CAN_ERROR_1,
+			     etm_can_log_data.can_rx_0_filt_0,
+			     etm_can_log_data.can_rx_0_filt_1,
+			     etm_can_log_data.can_rx_1_filt_2,
+			     etm_can_log_data.CXINTF_max);
+	  
+	} else if (slave_data_log_sub_timer == 2) {
+	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CAN_ERROR_2,
+			     etm_can_log_data.can_unknown_msg_id,
+			     etm_can_log_data.can_invalid_index,
+			     etm_can_log_data.can_address_error,
+			     etm_can_log_data.can_error_flag);
+
+	} else {
+	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CAN_ERROR_3,
+			     etm_can_log_data.can_tx_buf_overflow,
+			     etm_can_log_data.can_rx_buf_overflow,
+			     etm_can_log_data.can_rx_log_buf_overflow,
+			     etm_can_log_data.can_timeout);
+	}
 	break;
-	
+
       case 0x9:
-	ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CAN_ERROR_3,
-			   local_can_errors.message_tx_buffer_overflow,
-			   local_can_errors.message_rx_buffer_overflow,
-			   local_can_errors.data_log_rx_buffer_overflow,
-			   local_can_errors.timeout);
-	break;
-	
-      case 0xA:
-	ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CONFIG_0,
-			   etm_can_my_configuration.agile_number_high_word,
-			   etm_can_my_configuration.agile_number_low_word,
-			   etm_can_my_configuration.agile_dash,
-			   etm_can_my_configuration.agile_rev_ascii);
-	break;
+	if (slave_data_log_sub_timer == 0) {
+	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CONFIG_0,
+			     etm_can_log_data.agile_number_high_word,
+			     etm_can_log_data.agile_number_low_word,
+			     etm_can_log_data.agile_dash,
+			     etm_can_log_data.agile_rev_ascii);
+	  
+	} else if (slave_data_log_sub_timer == 1) {
+	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CONFIG_1,
+			     etm_can_log_data.serial_number,
+			     etm_can_log_data.firmware_branch,
+			     etm_can_log_data.firmware_major_rev,
+			     etm_can_log_data.firmware_minor_rev);
+	  
+	} else if (slave_data_log_sub_timer == 2) {
+	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_SYSTEM_ERROR_0, 
+			     etm_can_log_data.reset_count, 
+			     etm_can_log_data.RCON_value,
+			     etm_can_log_data.reserved_1, 
+			     etm_can_log_data.reserved_0);	  	  
 
-      case 0xB:
-	ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CONFIG_1,
-			   etm_can_my_configuration.serial_number,
-			   etm_can_my_configuration.firmware_branch,
-			   etm_can_my_configuration.firmware_major_rev,
-			   etm_can_my_configuration.firmware_minor_rev);
-	break;
-	
-      case 0xC:
-	ETMCanSlaveLogCustomPacketC();
-	break;
-	
-      case 0xD:
-	ETMCanSlaveLogCustomPacketD();
-	break;
-
-      case 0xE:
-	ETMCanSlaveLogCustomPacketE();
-	break;
-
-      case 0xF:
-	ETMCanSlaveLogCustomPacketF();
+	} else {
+	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_SYSTEM_ERROR_1, 
+			     etm_can_log_data.i2c_bus_error_count, 
+			     etm_can_log_data.spi_bus_error_count,
+			     etm_can_log_data.scale_error_count,
+			     *(unsigned int*)&etm_can_log_data.self_test_results);      
+	}
 	break;
       }
   }
@@ -610,28 +640,26 @@ void ETMCanSlaveTimedTransmit(void) {
 
 void ETMCanSlaveSendStatus(void) {
   ETMCanMessage message;
-  message.identifier = ETM_CAN_MSG_STATUS_TX | (can_params.address << 3);
+  message.identifier = ETM_CAN_MSG_STATUS_TX | (can_params.address << 2);
 
   message.word0 = _CONTROL_REGISTER;
   message.word1 = _FAULT_REGISTER;
-  message.word2 = etm_can_status_register.data_word_A;
-  message.word3 = etm_can_status_register.data_word_B;
-  
-  ETMCanTXMessage(&message, &CXTX1CON);
-  local_can_errors.tx_1++;
+  message.word2 = _WARNING_REGISTER;
+  message.word3 = 0;
+
+  ETMCanTXMessage(&message, CXTX1CON_ptr);  
+  etm_can_log_data.can_tx_1++;
 }
 
 
 void ETMCanSlaveLogData(unsigned int packet_id, unsigned int word3, unsigned int word2, unsigned int word1, unsigned int word0) {
-  
   ETMCanMessage log_message;
   
-  packet_id &= 0x000F;
-  packet_id |= (can_params.address << 4);
-  packet_id <<= 1;
-  packet_id |= 0b0000011000000000;
-  packet_id <<= 2;
+  packet_id |= can_params.address; // Add the board address to the packet_id
+  packet_id |= 0b0000010000000000; // Add the Data log identifier
   
+  // Format the packet Id for the PIC Register
+  packet_id <<= 2;
   log_message.identifier = packet_id;
   log_message.identifier &= 0xFF00;
   log_message.identifier <<= 3;
@@ -649,12 +677,14 @@ void ETMCanSlaveLogData(unsigned int packet_id, unsigned int word3, unsigned int
 void ETMCanSlaveCheckForTimeOut(void) {
   if (_T5IF) {
     _T5IF = 0;
-    local_can_errors.timeout++;
-    etm_can_persistent_data.can_timeout_count = local_can_errors.timeout;
-    _CONTROL_CAN_COM_LOSS = 1;
+    etm_can_log_data.can_timeout++;
+    etm_can_persistent_data.can_timeout_count = etm_can_log_data.can_timeout;
+    etm_can_slave_com_loss = 1;
   }
 }
 
+
+// DPARKER this needs to get fixed
 void ETMCanSlaveSendUpdateIfNewNotReady(void) {
   if ((previous_ready_status == 0) && (_CONTROL_NOT_READY)) {
     // There is new condition that is causing this board to inhibit operation.
@@ -668,22 +698,23 @@ void ETMCanSlaveSendUpdateIfNewNotReady(void) {
 
 void ETMCanSlaveDoSync(ETMCanMessage* message_ptr) {
   // Sync data is available in CXRX0B1->CXRX0B4
-  // At this time all that happens is that the chip watchdog is reset
   // DPARKER move to assembly and issure W0-W3, SR usage
 
   // It should be noted that if any of these registers are written ANYWHERE else, then they can be bashed
   // Therefore the Slave boards should NEVER WRITE ANYTHING in _SYNC_CONTROL_WORD
 
   _SYNC_CONTROL_WORD = message_ptr->word0;
-  etm_can_sync_message.sync_1 = message_ptr->word1;
+  etm_can_sync_message.sync_1_ecb_state_for_fault_logic = message_ptr->word1;
   etm_can_sync_message.sync_2 = message_ptr->word2;
-  etm_can_sync_message.sync_3 = 0xFFFF;  // Use this to indicate that a sync message has been recieved
+  etm_can_sync_message.sync_3 = message_ptr->word3;
   
   ClrWdt();
-  _CONTROL_CAN_COM_LOSS = 0;
+  etm_can_slave_com_loss = 0;
   
   TMR5 = 0;
 
+  // DPARKER this will not work as implimented.  Confirm it is handled by the pusle sync board
+  /*
 #ifdef __A36487
   // The Pulse Sync Board needs to see if it needs to inhibit X_RAYs
   // This can be based by an update to read/modify update to this PORT that is currently in process
@@ -694,67 +725,68 @@ void ETMCanSlaveDoSync(ETMCanMessage* message_ptr) {
     // DPARKER how do we ensure that this is not bashed by a command in progress???
   }
 #endif
-
+  */
 }
 
 
 void ETMCanSlaveClearDebug(void) {
+  etm_can_log_data.debug_0             = 0;
+  etm_can_log_data.debug_1             = 0;
+  etm_can_log_data.debug_2             = 0;
+  etm_can_log_data.debug_3             = 0;
+
+  etm_can_log_data.debug_4             = 0;
+  etm_can_log_data.debug_5             = 0;
+  etm_can_log_data.debug_6             = 0;
+  etm_can_log_data.debug_7             = 0;
+
+  etm_can_log_data.debug_8             = 0;
+  etm_can_log_data.debug_9             = 0;
+  etm_can_log_data.debug_A             = 0;
+  etm_can_log_data.debug_B             = 0;
+
+  etm_can_log_data.debug_C             = 0;
+  etm_can_log_data.debug_D             = 0;
+  etm_can_log_data.debug_E             = 0;
+  etm_can_log_data.debug_F             = 0;
+
+
+  etm_can_log_data.can_tx_0            = 0;
+  etm_can_log_data.can_tx_1            = 0;
+  etm_can_log_data.can_tx_2            = 0;
+  etm_can_log_data.CXEC_reg_max        = 0;
+
+  etm_can_log_data.can_rx_0_filt_0     = 0;
+  etm_can_log_data.can_rx_0_filt_1     = 0;
+  etm_can_log_data.can_rx_1_filt_2     = 0;
+  etm_can_log_data.CXINTF_max          = 0;
+
+  etm_can_log_data.can_unknown_msg_id  = 0;
+  etm_can_log_data.can_invalid_index   = 0;
+  etm_can_log_data.can_address_error   = 0;
+  etm_can_log_data.can_error_flag      = 0;
+
+  etm_can_log_data.can_tx_buf_overflow = 0;
+  etm_can_log_data.can_rx_buf_overflow = 0;
+  etm_can_log_data.can_rx_log_buf_overflow = 0;
+  etm_can_log_data.can_timeout         = 0;
+
+  etm_can_log_data.reset_count         = 0;
+  etm_can_log_data.RCON_value          = 0;
+  etm_can_log_data.reserved_1          = 0;
+  etm_can_log_data.reserved_0          = 0;
+
+  etm_can_log_data.i2c_bus_error_count = 0;
+  etm_can_log_data.spi_bus_error_count = 0;
+  etm_can_log_data.scale_error_count   = 0;
+  //self test results
+
   etm_can_tx_message_buffer.message_overwrite_count = 0;
   etm_can_rx_message_buffer.message_overwrite_count = 0;
   etm_can_persistent_data.reset_count = 0;
   etm_can_persistent_data.can_timeout_count = 0;
 
-  local_debug_data.i2c_bus_error_count = 0;
-  local_debug_data.spi_bus_error_count = 0;
-  local_debug_data.can_bus_error_count = 0;
-  local_debug_data.scale_error_count   = 0;
-  
-  local_debug_data.reset_count         = 0;
-  //
-  local_debug_data.reserved_1          = 0;
-  local_debug_data.reserved_0          = 0;
 
-  local_debug_data.debug_0             = 0;
-  local_debug_data.debug_1             = 0;
-  local_debug_data.debug_2             = 0;
-  local_debug_data.debug_3             = 0;
-
-  local_debug_data.debug_4             = 0;
-  local_debug_data.debug_5             = 0;
-  local_debug_data.debug_6             = 0;
-  local_debug_data.debug_7             = 0;
-
-  local_debug_data.debug_8             = 0;
-  local_debug_data.debug_9             = 0;
-  local_debug_data.debug_A             = 0;
-  local_debug_data.debug_B             = 0;
-
-  local_debug_data.debug_C             = 0;
-  local_debug_data.debug_D             = 0;
-  local_debug_data.debug_E             = 0;
-  local_debug_data.debug_F             = 0;
-
-  local_can_errors.CXEC_reg            = 0;
-  local_can_errors.error_flag          = 0;
-  local_can_errors.tx_1                = 0;
-  local_can_errors.tx_2                = 0;
-  
-  local_can_errors.rx_0_filt_0         = 0;
-  local_can_errors.rx_0_filt_1         = 0;
-  local_can_errors.rx_1_filt_2         = 0;
-  local_can_errors.isr_entered         = 0;
-
-  local_can_errors.unknown_message_identifier  = 0;
-  local_can_errors.invalid_index       = 0;
-  local_can_errors.address_error       = 0;
-  local_can_errors.tx_0                = 0;
-
-  local_can_errors.message_tx_buffer_overflow  = 0;
-  local_can_errors.message_rx_buffer_overflow  = 0;
-  local_can_errors.data_log_rx_buffer_overflow = 0;
-  local_can_errors.timeout             = 0;
-
-  CXINTF = 0;
   _TRAPR = 0;
   _IOPUWR = 0;
   _EXTR = 0;
@@ -764,69 +796,82 @@ void ETMCanSlaveClearDebug(void) {
   _BOR = 0;
   _POR = 0;
   _SWR = 0;
+
+  *CXINTF_ptr = 0;
 }
 
 
-
-
-
-
 // Can interrupt ISR for slave modules
+#define BUFFER_FULL_BIT    0x0080
+#define FILTER_SELECT_BIT  0x0001
+#define TX_REQ_BIT         0x0008
+#define RX0_INT_FLAG_BIT   0xFFFE
+#define RX1_INT_FLAG_BIT   0xFFFD
+#define ERROR_FLAG_BIT     0x0020
+  
 
-void __attribute__((interrupt(__save__(CORCON,SR)), no_auto_psv)) _CXInterrupt(void) {
+void DoCanInterrupt(void);
+
+void __attribute__((interrupt(__save__(CORCON,SR)), no_auto_psv)) _C1Interrupt(void) {
+  _C1IF = 0;
+  DoCanInterrupt();
+}
+
+void __attribute__((interrupt(__save__(CORCON,SR)), no_auto_psv)) _C2Interrupt(void) {
+  _C2IF = 0;
+  DoCanInterrupt();
+}
+
+void DoCanInterrupt(void) {
   ETMCanMessage can_message;
-    
-  _CXIF = 0;
-  //local_can_errors.isr_entered++;
-  local_can_errors.isr_entered |= CXINTF;
-    
-  if(CXRX0CONbits.RXFUL) {
-    /*
-      A message has been received in Buffer Zero
-    */
-    if (!CXRX0CONbits.FILHIT0) {
+
+  etm_can_log_data.CXINTF_max |= *CXINTF_ptr;
+  
+  if (*CXRX0CON_ptr & BUFFER_FULL_BIT) {
+    // A message has been received in Buffer Zero
+    if (!(*CXRX0CON_ptr & FILTER_SELECT_BIT)) {
       // The command was received by Filter 0
       // It is a Next Pulse Level Command
-      local_can_errors.rx_0_filt_0++;
-      ETMCanRXMessage(&can_message, &CXRX0CON);
+      etm_can_log_data.can_rx_0_filt_0++;
+      ETMCanRXMessage(&can_message, CXRX0CON_ptr);
       etm_can_next_pulse_level = can_message.word1;
       etm_can_next_pulse_count = can_message.word0;
     } else {
       // The commmand was received by Filter 1
       // The command is a sync command.
-      local_can_errors.rx_0_filt_1++;
-      ETMCanRXMessage(&can_message, &CXRX0CON);
+      etm_can_log_data.can_rx_0_filt_1++;
+      ETMCanRXMessage(&can_message, CXRX0CON_ptr);
       ETMCanSlaveDoSync(&can_message);
     }
-    CXINTFbits.RX0IF = 0; // Clear the Interuppt Status bit
+    *CXINTF_ptr &= RX0_INT_FLAG_BIT; // Clear the RX0 Interrupt Flag
   }
-    
-  if(CXRX1CONbits.RXFUL) {
+  
+  if (*CXRX1CON_ptr & BUFFER_FULL_BIT) {
     /* 
        A message has been recieved in Buffer 1
        This command gets pushed onto the command message buffer
     */
-    local_can_errors.rx_1_filt_2++;
-    ETMCanRXMessageBuffer(&etm_can_rx_message_buffer, &CXRX1CON);
-    CXINTFbits.RX1IF = 0; // Clear the Interuppt Status bit
+    etm_can_log_data.can_rx_1_filt_2++;
+    ETMCanRXMessageBuffer(&etm_can_rx_message_buffer, CXRX1CON_ptr);
+    *CXINTF_ptr &= RX1_INT_FLAG_BIT; // Clear the RX1 Interrupt Flag
   }
 
-  if ((!CXTX0CONbits.TXREQ) && (ETMCanBufferNotEmpty(&etm_can_tx_message_buffer))) {
+  if (!(*CXTX0CON_ptr & TX_REQ_BIT) && ((ETMCanBufferNotEmpty(&etm_can_tx_message_buffer)))) {
     /*
       TX0 is empty and there is a message waiting in the transmit message buffer
       Load the next message into TX0
     */
-    ETMCanTXMessageBuffer(&etm_can_tx_message_buffer, &CXTX0CON);
-    CXINTFbits.TX0IF = 0;
-    local_can_errors.tx_0++;
+    ETMCanTXMessageBuffer(&etm_can_tx_message_buffer, CXTX0CON_ptr);
+    *CXINTF_ptr &= 0xFFFB; // Clear the TX0 Interrupt Flag
+    etm_can_log_data.can_tx_0++;
   }
   
-  if (CXINTFbits.ERRIF) {
+  if (*CXINTF_ptr & ERROR_FLAG_BIT) {
     // There was some sort of CAN Error
     // DPARKER - figure out which error and fix/reset
-    local_can_errors.data_log_rx_buffer_overflow |= CXINTF;
-    local_can_errors.error_flag++;
-    CXINTFbits.ERRIF = 0;
+    etm_can_log_data.CXINTF_max |= *CXINTF_ptr;
+    etm_can_log_data.can_error_flag++;
+    *CXINTF_ptr &= ~ERROR_FLAG_BIT; // Clear the ERR Flag
   } else {
     // FLASH THE CAN LED
     if (ETMReadPinLatch(can_params.led)) {
@@ -835,18 +880,10 @@ void __attribute__((interrupt(__save__(CORCON,SR)), no_auto_psv)) _CXInterrupt(v
       ETMSetPin(can_params.led);
     }
   }
-  //local_can_errors.CXEC_reg = CXEC;
-  
-  // Record the max TX counter
-  if ((CXEC & 0xFF00) > (local_can_errors.CXEC_reg & 0xFF00)) {
-    local_can_errors.CXEC_reg &= 0x00FF;
-    local_can_errors.CXEC_reg += (CXEC & 0xFF00);
-  }
-  
-  // Record the max RX counter
-  if ((CXEC & 0x00FF) > (local_can_errors.CXEC_reg & 0x00FF)) {
-    local_can_errors.CXEC_reg &= 0xFF00;
-    local_can_errors.CXEC_reg += (CXEC & 0x00FF);
-  }
 }
+
+
+
+
+
 

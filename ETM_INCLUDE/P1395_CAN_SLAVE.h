@@ -4,11 +4,12 @@
 #include "P1395_CAN_CORE.h"
 
 extern const unsigned int p1395_can_slave_version;
+extern unsigned int etm_can_slave_com_loss;
 
 //------------ SLAVE PUBLIC FUNCTIONS AND VARIABLES ------------------- //
 
 // Public Functions
-void ETMCanSlaveInitialize(unsigned long fcy, unsigned int etm_can_address, unsigned long can_operation_led, unsigned int can_interrupt_priority);
+void ETMCanSlaveInitialize(unsigned int requested_can_port, unsigned long fcy, unsigned int etm_can_address, unsigned long can_operation_led, unsigned int can_interrupt_priority);
 /*
   This is called once when the processor starts up to initialize the can bus and all of the can variables
 */
@@ -32,20 +33,9 @@ void ETMCanSlaveDoCan(void);
 */
 
 
-void ETMCanSlaveLogCustomPacketC(void);
-void ETMCanSlaveLogCustomPacketD(void);
-void ETMCanSlaveLogCustomPacketE(void);
-void ETMCanSlaveLogCustomPacketF(void);
+void ETMCanSlaveLogBoardData(unsigned int data_register);
 /*
-  These are used to send out the logging data packets for each board.
-  These are sent by the can module once every 1.6 seconds.
-  These are made visable so that they can be sent at a higher speed as needed (for pulse by pulse data logging)
-*/
-
-void ETMCanSlaveLogData(unsigned int packet_id, unsigned int word3, unsigned int word2, unsigned int word1, unsigned int word0);
-/*
-  This is a ETMCanSlaveTimedTransmit helper function.
-  It is used to generate the slave logging messages
+  This is use to manualy send a data logging message
 */
 
 // Only for Pulse Sync Board
