@@ -14,7 +14,7 @@ void ETMCanSlaveInitialize(unsigned int requested_can_port, unsigned long fcy, u
   This is called once when the processor starts up to initialize the can bus and all of the can variables
 */
 
-void ETMCanSlaveLoadConfiguration(unsigned long agile_id, unsigned int agile_dash, unsigned int firmware_agile_rev, unsigned int firmware_branch, unsigned int firmware_minor_rev);
+void ETMCanSlaveLoadConfiguration(unsigned long agile_id, unsigned int agile_dash, unsigned int agile_rev, unsigned int firmware_agile_rev, unsigned int firmware_branch, unsigned int firmware_branch_rev, unsigned int serial_number);
 /*
   This is called once when the prcoessor starts up to load the board configuration into RAM so it can be sent over CAN to the ECB
 */

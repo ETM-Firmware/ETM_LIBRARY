@@ -134,7 +134,7 @@ unsigned int etm_can_next_pulse_count;
 unsigned int etm_can_slave_com_loss;
 
 // Public Debug and Status registers
-unsigned int              etm_can_board_data[24];
+unsigned int              etm_can_board_data[32];
 ETMCanStatusRegister      etm_can_status_register;
 ETMCanStandardLoggingData etm_can_log_data;
 ETMCanSyncMessage         etm_can_sync_message;
@@ -307,24 +307,95 @@ void ETMCanSlaveInitialize(unsigned int requested_can_port, unsigned long fcy, u
     
   } else {
     // Use CAN2
+    CXEC_ptr     = &C2EC;
+    CXINTF_ptr   = &C2INTF;
+    CXRX0CON_ptr = &C2RX0CON;
+    CXRX1CON_ptr = &C2RX1CON;
+    CXTX0CON_ptr = &C2TX0CON;
+    CXTX1CON_ptr = &C2TX1CON;
+    CXTX2CON_ptr = &C2TX2CON;
+
+    _C2IE = 0;
+    _C2IF = 0;
+    _C2IP = can_interrupt_priority;
+    
+    C2INTF = 0;
+    
+    C2INTEbits.RX0IE = 1; // Enable RXB0 interrupt
+    C2INTEbits.RX1IE = 1; // Enable RXB1 interrupt
+    C2INTEbits.TX0IE = 1; // Enable TXB0 interrupt
+    C2INTEbits.ERRIE = 1; // Enable Error interrupt
+  
+    // ---------------- Set up CAN Control Registers ---------------- //
+    
+    // Set Baud Rate
+    C2CTRL = CXCTRL_CONFIG_MODE_VALUE;
+    while(C2CTRLbits.OPMODE != 4);
+    
+    if (fcy == 25000000) {
+      C2CFG1 = CXCFG1_25MHZ_FCY_VALUE;    
+    } else if (fcy == 20000000) {
+      C2CFG1 = CXCFG1_20MHZ_FCY_VALUE;    
+    } else if (fcy == 10000000) {
+      C2CFG1 = CXCFG1_10MHZ_FCY_VALUE;    
+    } else {
+      // If you got here we can't configure the can module
+      // DPARKER WHAT TO DO HERE
+    }
+    
+    C2CFG2 = CXCFG2_VALUE;
+    
+    
+    // Load Mask registers for RX0 and RX1
+    C2RXM0SID = ETM_CAN_SLAVE_RX0_MASK;
+    C2RXM1SID = ETM_CAN_SLAVE_RX1_MASK;
+    
+    // Load Filter registers
+    C2RXF0SID = ETM_CAN_SLAVE_MSG_FILTER_RF0;
+    C2RXF1SID = ETM_CAN_SLAVE_MSG_FILTER_RF1;
+    C2RXF2SID = (ETM_CAN_SLAVE_MSG_FILTER_RF2 | (can_params.address << 2));
+    //C2RXF3SID = ETM_CAN_MSG_FILTER_OFF;
+    //C2RXF4SID = ETM_CAN_MSG_FILTER_OFF;
+    //C2RXF5SID = ETM_CAN_MSG_FILTER_OFF;
+    
+    // Set Transmitter Mode
+    C2TX0CON = CXTXXCON_VALUE_LOW_PRIORITY;
+    C2TX1CON = CXTXXCON_VALUE_MEDIUM_PRIORITY;
+    C2TX2CON = CXTXXCON_VALUE_HIGH_PRIORITY;
+    
+    C2TX0DLC = CXTXXDLC_VALUE;
+    C2TX1DLC = CXTXXDLC_VALUE;
+    C2TX2DLC = CXTXXDLC_VALUE;
+    
+    
+    // Set Receiver Mode
+    C2RX0CON = CXRXXCON_VALUE;
+    C2RX1CON = CXRXXCON_VALUE;
+    
+
+    // Switch to normal operation
+    C2CTRL = CXCTRL_OPERATE_MODE_VALUE;
+    while(C2CTRLbits.OPMODE != 0);
+    
+    // Enable Can interrupt
+    _C2IE = 1;
+    _C1IE = 0;
   }
 }
 
 
-void ETMCanSlaveLoadConfiguration(unsigned long agile_id, unsigned int agile_dash, unsigned int firmware_agile_rev, unsigned int firmware_branch, unsigned int firmware_minor_rev) {
+void ETMCanSlaveLoadConfiguration(unsigned long agile_id, unsigned int agile_dash, unsigned int agile_rev, unsigned int firmware_agile_rev, unsigned int firmware_branch, unsigned int firmware_branch_rev, unsigned int serial_number) {
 
-  etm_can_log_data.agile_number_low_word = (agile_id & 0xFFFF);
+  config_agile_number_low_word = (agile_id & 0xFFFF);
   agile_id >>= 16;
-  etm_can_log_data.agile_number_high_word = agile_id;
-  etm_can_log_data.agile_dash = agile_dash;
-  etm_can_log_data.firmware_branch = firmware_branch;
-  etm_can_log_data.firmware_major_rev = firmware_agile_rev;
-  etm_can_log_data.firmware_minor_rev = firmware_minor_rev;
+  config_agile_number_high_word = agile_id;
+  config_agile_dash = agile_dash;
+  config_agile_rev_ascii = agile_rev;
 
-  // Load default values for agile rev and serial number at this time
-  // Need some way to update these with the real numbers
-  etm_can_log_data.agile_rev_ascii = 'A';
-  etm_can_log_data.serial_number = 0;
+  config_firmware_agile_rev = firmware_agile_rev;
+  config_firmware_branch = firmware_branch;
+  config_firmware_branch_rev = firmware_branch_rev;
+  config_serial_number = serial_number;
 }
 
 
@@ -605,19 +676,9 @@ void ETMCanSlaveTimedTransmit(void) {
 
       case 0x9:
 	if (slave_data_log_sub_timer == 0) {
-	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CONFIG_0,
-			     etm_can_log_data.agile_number_high_word,
-			     etm_can_log_data.agile_number_low_word,
-			     etm_can_log_data.agile_dash,
-			     etm_can_log_data.agile_rev_ascii);
-	  
+	  ETMCanSlaveLogBoardData(6);
 	} else if (slave_data_log_sub_timer == 1) {
-	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CONFIG_1,
-			     etm_can_log_data.serial_number,
-			     etm_can_log_data.firmware_branch,
-			     etm_can_log_data.firmware_major_rev,
-			     etm_can_log_data.firmware_minor_rev);
-	  
+	  ETMCanSlaveLogBoardData(7);
 	} else if (slave_data_log_sub_timer == 2) {
 	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_SYSTEM_ERROR_0, 
 			     etm_can_log_data.reset_count, 

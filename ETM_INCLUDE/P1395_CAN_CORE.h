@@ -4,10 +4,10 @@
 // ---------------------- STATUS REGISTER DEFFENITIONS   ------------------------- //
 
 typedef struct {
-  unsigned control_0_sum_fault:1;
-  unsigned control_1_not_configured:1;
-  unsigned control_2_not_ready:1;
-  unsigned control_3_self_check_error:1;
+  unsigned control_not_ready:1;
+  unsigned control_not_configured:1;
+  unsigned control_self_check_error:1;
+  unsigned control_3_unused:1;
   unsigned control_4_unused:1;
   unsigned control_5_unused:1;
   unsigned control_6_unused:1;
@@ -91,10 +91,10 @@ typedef struct {
 
 extern ETMCanStatusRegister           etm_can_status_register;
 
-#define _CONTROL_SUM_FAULT            etm_can_status_register.control_notice_bits.control_0_sum_fault
-#define _CONTROL_NOT_CONFIGURED       etm_can_status_register.control_notice_bits.control_1_not_configured
-#define _CONTROL_NOT_READY            etm_can_status_register.control_notice_bits.control_2_not_ready
-#define _CONTROL_SELF_CHECK_ERROR     etm_can_status_register.control_notice_bits.control_3_self_check_error
+
+#define _CONTROL_NOT_READY            etm_can_status_register.control_notice_bits.control_not_ready
+#define _CONTROL_NOT_CONFIGURED       etm_can_status_register.control_notice_bits.control_not_configured
+#define _CONTROL_SELF_CHECK_ERROR     etm_can_status_register.control_notice_bits.control_self_check_error
 
 
 #define _NOTICE_0                     etm_can_status_register.control_notice_bits.notice_0
@@ -189,39 +189,55 @@ typedef struct {
 
 */
 
-extern unsigned int etm_can_board_data[24];
+extern unsigned int etm_can_board_data[32];
 
-#define board_data_msg_0_word_0 etm_can_board_data[0];
-#define board_data_msg_0_word_1 etm_can_board_data[1];
-#define board_data_msg_0_word_2 etm_can_board_data[2];
-#define board_data_msg_0_word_3 etm_can_board_data[3];
+// Board data - 0x00
+#define board_data_msg_0_word_0 etm_can_board_data[0]
+#define board_data_msg_0_word_1 etm_can_board_data[1]
+#define board_data_msg_0_word_2 etm_can_board_data[2]
+#define board_data_msg_0_word_3 etm_can_board_data[3]
 
-#define board_data_msg_1_word_0 etm_can_board_data[4];
-#define board_data_msg_1_word_1 etm_can_board_data[5];
-#define board_data_msg_1_word_2 etm_can_board_data[6];
-#define board_data_msg_1_word_3 etm_can_board_data[7];
+// Board data - 0x01
+#define board_data_msg_1_word_0 etm_can_board_data[4]
+#define board_data_msg_1_word_1 etm_can_board_data[5]
+#define board_data_msg_1_word_2 etm_can_board_data[6]
+#define board_data_msg_1_word_3 etm_can_board_data[7]
 
-#define board_data_msg_2_word_0 etm_can_board_data[8];
-#define board_data_msg_2_word_1 etm_can_board_data[9];
-#define board_data_msg_2_word_2 etm_can_board_data[10];
-#define board_data_msg_2_word_3 etm_can_board_data[11];
+// Board data - 0x02
+#define board_data_msg_2_word_0 etm_can_board_data[8]
+#define board_data_msg_2_word_1 etm_can_board_data[9]
+#define board_data_msg_2_word_2 etm_can_board_data[10]
+#define board_data_msg_2_word_3 etm_can_board_data[11]
 
-#define board_data_msg_3_word_0 etm_can_board_data[12];
-#define board_data_msg_3_word_1 etm_can_board_data[13];
-#define board_data_msg_3_word_2 etm_can_board_data[14];
-#define board_data_msg_3_word_3 etm_can_board_data[15];
+// Board data - 0x03
+#define board_data_msg_3_word_0 etm_can_board_data[12]
+#define board_data_msg_3_word_1 etm_can_board_data[13]
+#define board_data_msg_3_word_2 etm_can_board_data[14]
+#define board_data_msg_3_word_3 etm_can_board_data[15]
 
-#define board_data_msg_4_word_0 etm_can_board_data[16];
-#define board_data_msg_4_word_1 etm_can_board_data[17];
-#define board_data_msg_4_word_2 etm_can_board_data[18];
-#define board_data_msg_4_word_3 etm_can_board_data[19];
+// Board data - 0x04
+#define board_data_msg_4_word_0 etm_can_board_data[16]
+#define board_data_msg_4_word_1 etm_can_board_data[17]
+#define board_data_msg_4_word_2 etm_can_board_data[18]
+#define board_data_msg_4_word_3 etm_can_board_data[19]
 
-#define board_data_msg_5_word_0 etm_can_board_data[20];
-#define board_data_msg_5_word_1 etm_can_board_data[21];
-#define board_data_msg_5_word_2 etm_can_board_data[22];
-#define board_data_msg_5_word_3 etm_can_board_data[23];
+// Board data - 0x05
+#define board_data_msg_5_word_0 etm_can_board_data[20]
+#define board_data_msg_5_word_1 etm_can_board_data[21]
+#define board_data_msg_5_word_2 etm_can_board_data[22]
+#define board_data_msg_5_word_3 etm_can_board_data[23]
 
+// Board Configuration data - 0x06
+#define config_agile_number_high_word      etm_can_board_data[24]
+#define config_agile_number_low_word       etm_can_board_data[25]
+#define config_agile_dash                  etm_can_board_data[26]
+#define config_agile_rev_ascii             etm_can_board_data[27]
 
+// Board Configuration data - 0x07
+#define config_serial_number               etm_can_board_data[28]
+#define config_firmware_agile_rev          etm_can_board_data[29]
+#define config_firmware_branch             etm_can_board_data[30]
+#define config_firmware_branch_rev         etm_can_board_data[31]
 
 typedef struct {
   // Software Debug Data - 0x10
@@ -247,18 +263,6 @@ typedef struct {
   unsigned int debug_D;
   unsigned int debug_E;
   unsigned int debug_F;
-
-  // Board Configuration data - 0x14
-  unsigned int  agile_number_high_word;
-  unsigned int  agile_number_low_word;
-  unsigned int  agile_dash;
-  unsigned int  agile_rev_ascii;
-
-  // Board Configuration data - 0x15
-  unsigned int  serial_number;
-  unsigned int  firmware_branch;
-  unsigned int  firmware_major_rev;
-  unsigned int  firmware_minor_rev;
 
   // Can data log - 0x20
   unsigned int can_tx_0;            // count of tx_0 transmits
@@ -631,21 +635,20 @@ typedef struct {
 //------------------ DATA LOGGING REGISTERS --------------------------//
 
 // Default data logging registers
+#define ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_0                      0x040 // This gets or'd with board address
+#define ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_1                      0x050 // This gets or'd with board address
+#define ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_2                      0x060 // This gets or'd with board address
+#define ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_3                      0x070 // This gets or'd with board address
+#define ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_4                      0x080 // This gets or'd with board address
+#define ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_5                      0x090 // This gets or'd with board address
 
-#define ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_0                      0x000 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_1                      0x010 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_2                      0x020 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_3                      0x030 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_4                      0x040 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_5                      0x050 // This gets or'd with board address
+#define ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CONFIG_0                      0x0E0 // This gets or'd with board address
+#define ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CONFIG_1                      0x0F0 // This gets or'd with board address
 
 #define ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_0                       0x100 // This gets or'd with board address
 #define ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_1                       0x110 // This gets or'd with board address
 #define ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_2                       0x120 // This gets or'd with board address
 #define ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_3                       0x130 // This gets or'd with board address
-
-#define ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CONFIG_0                      0x180 // This gets or'd with board address
-#define ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CONFIG_1                      0x190 // This gets or'd with board address
 
 #define ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CAN_ERROR_0                   0x200 // This gets or'd with board address
 #define ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CAN_ERROR_1                   0x210 // This gets or'd with board address
@@ -658,37 +661,19 @@ typedef struct {
 
 
 
+#define ETM_CAN_DATA_LOG_REGISTER_FAST_LOG_0                            0x000 // This gets or'd with board address
+#define ETM_CAN_DATA_LOG_REGISTER_FAST_LOG_1                            0x010 // This gets or'd with board address
+#define ETM_CAN_DATA_LOG_REGISTER_FAST_LOG_2                            0x020 // This gets or'd with board address
+#define ETM_CAN_DATA_LOG_REGISTER_FAST_LOG_3                            0x030 // This gets or'd with board address
 
-#define ETM_CAN_DATA_LOG_REGISTER_HV_LAMBDA_FAST_PROGRAM_VOLTAGE        ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_0 | ETM_CAN_ADDR_HV_LAMBDA_BOARD
-#define ETM_CAN_DATA_LOG_REGISTER_HV_LAMBDA_SLOW_SET_POINT              ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_1 | ETM_CAN_ADDR_HV_LAMBDA_BOARD
+// Custom High Speed Data Logging Registers
+#define ETM_CAN_DATA_LOG_REGISTER_HV_LAMBDA_FAST_LOG_0                  ETM_CAN_DATA_LOG_REGISTER_FAST_LOG_0 | ETM_CAN_ADDR_HV_LAMBDA_BOARD
+#define ETM_CAN_DATA_LOG_REGISTER_MAGNETRON_MON_FAST_LOG_0              ETM_CAN_DATA_LOG_REGISTER_FAST_LOG_0 | ETM_CAN_ADDR_MAGNETRON_CURRENT_BOARD
+#define ETM_CAN_DATA_LOG_REGISTER_AFC_FAST_LOG_0                        ETM_CAN_DATA_LOG_REGISTER_FAST_LOG_0 | ETM_CAN_ADDR_AFC_CONTROL_BOARD
+#define ETM_CAN_DATA_LOG_REGISTER_AFC_FAST_LOG_1                        ETM_CAN_DATA_LOG_REGISTER_FAST_LOG_1 | ETM_CAN_ADDR_AFC_CONTROL_BOARD
+#define ETM_CAN_DATA_LOG_REGISTER_PULSE_SYNC_FAST_LOG_0                 ETM_CAN_DATA_LOG_REGISTER_FAST_LOG_0 | ETM_CAN_ADDR_PULSE_SYNC_BOARD
 
-#define ETM_CAN_DATA_LOG_REGISTER_ION_PUMP_SLOW_MONITORS                0x1C
 
-#define ETM_CAN_DATA_LOG_REGISTER_AFC_FAST_POSITION                     0x5C
-#define ETM_CAN_DATA_LOG_REGISTER_AFC_FAST_READINGS                     0x5D
-#define ETM_CAN_DATA_LOG_REGISTER_AFC_SLOW_SETTINGS                     0x5E
-
-#define ETM_CAN_DATA_LOG_REGISTER_MAGNETRON_MON_FAST_PREVIOUS_PULSE     0x2C
-#define ETM_CAN_DATA_LOG_REGISTER_MAGNETRON_MON_SLOW_FILTERED_PULSE     0x2D
-#define ETM_CAN_DATA_LOG_REGISTER_MAGNETRON_MON_SLOW_ARCS               0x2E
-#define ETM_CAN_DATA_LOG_REGISTER_MAGNETRON_MON_SLOW_PULSE_COUNT        0x2F
-
-#define ETM_CAN_DATA_LOG_REGISTER_COOLING_SLOW_FLOW_0                   0x6C
-#define ETM_CAN_DATA_LOG_REGISTER_COOLING_SLOW_FLOW_1                   0x6D
-#define ETM_CAN_DATA_LOG_REGISTER_COOLING_SLOW_ANALOG_READINGS          0x6E
-
-#define ETM_CAN_DATA_LOG_REGISTER_HEATER_MAGNET_SLOW_READINGS           0x7C
-#define ETM_CAN_DATA_LOG_REGISTER_HEATER_MAGNET_SLOW_SET_POINTS         0x7D
-
-#define ETM_CAN_DATA_LOG_REGISTER_GUN_DRIVER_SLOW_PULSE_TOP_MON         0x8C
-#define ETM_CAN_DATA_LOG_REGISTER_GUN_DRIVER_SLOW_HEATER_MON            0x8D
-#define ETM_CAN_DATA_LOG_REGISTER_GUN_DRIVER_SLOW_SET_POINTS            0x8E
-#define ETM_CAN_DATA_LOG_REGISTER_GUN_DRIVER_FPGA_DATA                  0x8F          
-
-#define ETM_CAN_DATA_LOG_REGISTER_PULSE_SYNC_FAST_TRIGGER_DATA          0x3C
-#define ETM_CAN_DATA_LOG_REGISTER_PULSE_SYNC_SLOW_TIMING_DATA_0         0x3D
-#define ETM_CAN_DATA_LOG_REGISTER_PULSE_SYNC_SLOW_TIMING_DATA_1         0x3E
-#define ETM_CAN_DATA_LOG_REGISTER_PULSE_SYNC_SLOW_TIMING_DATA_2         0x3F
 
 
 // This allows the module to be configured to use CAN1 or CAN2  (CAN1 is default)
