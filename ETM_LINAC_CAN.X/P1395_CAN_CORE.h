@@ -430,25 +430,6 @@ unsigned int ETMCanBufferNotEmpty(ETMCanMessageBuffer* buffer_ptr);
 
 
 
-typedef struct {
-  unsigned unused_0:1;
-  unsigned ion_pump_board:1;
-  unsigned magnetron_current_board:1;
-  unsigned pulse_sync_board:1;
-  unsigned hv_lambda_board:1;
-  unsigned afc_board:1;
-  unsigned cooling_interface_board:1;
-  unsigned heater_magnet_board:1;
-  unsigned gun_driver_board:1;
-  unsigned unused_9:1;
-  unsigned unused_10:1;
-  unsigned unused_11:1;
-  unsigned unused_12:1;
-  unsigned unused_13:1;
-  unsigned ethernet_board:1;
-  unsigned unused_15:1;
-} P1395BoardBits;
-
 // Default Register Locations
 #define ETM_CAN_REGISTER_DEFAULT_CMD_RESET_MCU                          0x001
 #define ETM_CAN_REGISTER_DEFAULT_CMD_RESET_ANALOG_CALIBRATION           0x003

@@ -56,12 +56,6 @@ typedef struct {
 // 19 words
 
 
-typedef struct {
-  ETMCanStatusRegister    status;
-  unsigned int            board_data[32];
-  unsigned int            local_data[16];
-} ETMCanBoardData;
-
 extern ETMCanBoardData local_data_ecb;
 extern ETMCanBoardData mirror_hv_lambda;
 extern ETMCanBoardData mirror_ion_pump;
@@ -133,24 +127,16 @@ extern ETMCanBoardData mirror_pulse_sync;
 
 
 // Board Configuration data - 0x06
-#define config_agile_number_high_word      local_data_ecb.board_data[24]
-#define config_agile_number_low_word       local_data_ecb.board_data[25]
-#define config_agile_dash                  local_data_ecb.board_data[26]
-#define config_agile_rev_ascii             local_data_ecb.board_data[27]
+#define config_agile_number_high_word      local_data_ecb.config_data[0]
+#define config_agile_number_low_word       local_data_ecb.config_data[1]
+#define config_agile_dash                  local_data_ecb.config_data[2]
+#define config_agile_rev_ascii             local_data_ecb.config_data[3]
 
 // Board Configuration data - 0x07
-#define config_serial_number               local_data_ecb.board_data[28]
-#define config_firmware_agile_rev          local_data_ecb.board_data[29]
-#define config_firmware_branch             local_data_ecb.board_data[30]
-#define config_firmware_branch_rev         local_data_ecb.board_data[31]
-
-
-
-
-
-
-
-
+#define config_serial_number               local_data_ecb.config_data[4]
+#define config_firmware_agile_rev          local_data_ecb.config_data[5]
+#define config_firmware_branch             local_data_ecb.config_data[6]
+#define config_firmware_branch_rev         local_data_ecb.config_data[7]
 
 
 
@@ -184,8 +170,8 @@ extern ETMCanBoardData mirror_pulse_sync;
 
 
 
-ETMCanStandardLoggingData debug_data_ecb;
-ETMCanStandardLoggingData debug_data_slave_mirror;
+ETMCanBoardDebuggingData debug_data_ecb;
+ETMCanBoardDebuggingData debug_data_slave_mirror;
 
 
 
@@ -454,9 +440,6 @@ extern TYPE_EVENT_LOG event_log;
    This includes status, low level errors, configuration, and debug information
    This is a hack to allow the data on the master to be accessed the same way as it is on the slave boards
 */
-
-
-extern P1395BoardBits board_com_fault;
 
 
 

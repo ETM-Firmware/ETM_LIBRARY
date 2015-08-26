@@ -26,6 +26,27 @@ typedef struct {
 
 
 typedef struct {
+  unsigned unused_0:1;
+  unsigned ion_pump_board:1;
+  unsigned magnetron_current_board:1;
+  unsigned pulse_sync_board:1;
+  unsigned hv_lambda_board:1;
+  unsigned afc_board:1;
+  unsigned cooling_interface_board:1;
+  unsigned heater_magnet_board:1;
+  unsigned gun_driver_board:1;
+  unsigned unused_9:1;
+  unsigned unused_10:1;
+  unsigned unused_11:1;
+  unsigned unused_12:1;
+  unsigned unused_13:1;
+  unsigned ethernet_board:1;
+  unsigned unused_15:1;
+} P1395BoardBits;
+
+
+
+typedef struct {
   unsigned int no_connect_count_ion_pump_board;
   unsigned int no_connect_count_magnetron_current_board;
   unsigned int no_connect_count_pulse_sync_board;
@@ -827,31 +848,31 @@ void ETMCanMasterProcessLogData(void) {
 	switch (log_id) 
 	  {
 	  case ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_0:
-	    debug_data_slave_mirror.debug_0                 = next_message.word3;
-	    debug_data_slave_mirror.debug_1                 = next_message.word2;
-	    debug_data_slave_mirror.debug_2                 = next_message.word1;
-	    debug_data_slave_mirror.debug_3                 = next_message.word0;
+	    debug_data_slave_mirror.debug_reg[0]            = next_message.word3;
+	    debug_data_slave_mirror.debug_reg[1]            = next_message.word2;
+	    debug_data_slave_mirror.debug_reg[2]            = next_message.word1;
+	    debug_data_slave_mirror.debug_reg[3]            = next_message.word0;
 	    break;
 	    
 	  case ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_1:
-	    debug_data_slave_mirror.debug_4                 = next_message.word3;
-	    debug_data_slave_mirror.debug_5                 = next_message.word2;
-	    debug_data_slave_mirror.debug_6                 = next_message.word1;
-	    debug_data_slave_mirror.debug_7                 = next_message.word0;
+	    debug_data_slave_mirror.debug_reg[4]            = next_message.word3;
+	    debug_data_slave_mirror.debug_reg[5]            = next_message.word2;
+	    debug_data_slave_mirror.debug_reg[6]            = next_message.word1;
+	    debug_data_slave_mirror.debug_reg[7]            = next_message.word0;
 	    break;
 
 	  case ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_2:
-	    debug_data_slave_mirror.debug_8                 = next_message.word3;
-	    debug_data_slave_mirror.debug_9                 = next_message.word2;
-	    debug_data_slave_mirror.debug_A                 = next_message.word1;
-	    debug_data_slave_mirror.debug_B                 = next_message.word0;
+	    debug_data_slave_mirror.debug_reg[8]            = next_message.word3;
+	    debug_data_slave_mirror.debug_reg[9]            = next_message.word2;
+	    debug_data_slave_mirror.debug_reg[10]           = next_message.word1;
+	    debug_data_slave_mirror.debug_reg[11]           = next_message.word0;
 	    break;
 
 	  case ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_3:
-	    debug_data_slave_mirror.debug_C                 = next_message.word3;
-	    debug_data_slave_mirror.debug_D                 = next_message.word2;
-	    debug_data_slave_mirror.debug_E                 = next_message.word1;
-	    debug_data_slave_mirror.debug_F                 = next_message.word0;
+	    debug_data_slave_mirror.debug_reg[12]           = next_message.word3;
+	    debug_data_slave_mirror.debug_reg[13]           = next_message.word2;
+	    debug_data_slave_mirror.debug_reg[14]           = next_message.word1;
+	    debug_data_slave_mirror.debug_reg[15]           = next_message.word0;
 	    break;
 
 	  case ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CAN_ERROR_0:
@@ -949,59 +970,59 @@ void ETMCanMasterProcessLogData(void) {
       switch (log_id)
 	{
 	case ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_0:
-	  board_data_ptr->board_data[0]  = next_message.word0;
-	  board_data_ptr->board_data[1]  = next_message.word1;
-	  board_data_ptr->board_data[2]  = next_message.word2;
-	  board_data_ptr->board_data[3]  = next_message.word3;
+	  board_data_ptr->log_data[0]  = next_message.word0;
+	  board_data_ptr->log_data[1]  = next_message.word1;
+	  board_data_ptr->log_data[2]  = next_message.word2;
+	  board_data_ptr->log_data[3]  = next_message.word3;
 	  break;
 
 	case ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_1:
-	  board_data_ptr->board_data[4]  = next_message.word0;
-	  board_data_ptr->board_data[5]  = next_message.word1;
-	  board_data_ptr->board_data[6]  = next_message.word2;
-	  board_data_ptr->board_data[7]  = next_message.word3;
+	  board_data_ptr->log_data[4]  = next_message.word0;
+	  board_data_ptr->log_data[5]  = next_message.word1;
+	  board_data_ptr->log_data[6]  = next_message.word2;
+	  board_data_ptr->log_data[7]  = next_message.word3;
 	  break;
 
 	case ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_2:
-	  board_data_ptr->board_data[8]  = next_message.word0;
-	  board_data_ptr->board_data[9]  = next_message.word1;
-	  board_data_ptr->board_data[10] = next_message.word2;
-	  board_data_ptr->board_data[11] = next_message.word3;
+	  board_data_ptr->log_data[8]  = next_message.word0;
+	  board_data_ptr->log_data[9]  = next_message.word1;
+	  board_data_ptr->log_data[10] = next_message.word2;
+	  board_data_ptr->log_data[11] = next_message.word3;
 	  break;
 
 	case ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_3:
-	  board_data_ptr->board_data[12] = next_message.word0;
-	  board_data_ptr->board_data[13] = next_message.word1;
-	  board_data_ptr->board_data[14] = next_message.word2;
-	  board_data_ptr->board_data[15] = next_message.word3;
+	  board_data_ptr->log_data[12] = next_message.word0;
+	  board_data_ptr->log_data[13] = next_message.word1;
+	  board_data_ptr->log_data[14] = next_message.word2;
+	  board_data_ptr->log_data[15] = next_message.word3;
 	  break;
 
 	case ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_4:
-	  board_data_ptr->board_data[16] = next_message.word0;
-	  board_data_ptr->board_data[17] = next_message.word1;
-	  board_data_ptr->board_data[18] = next_message.word2;
-	  board_data_ptr->board_data[19] = next_message.word3;
+	  board_data_ptr->log_data[16] = next_message.word0;
+	  board_data_ptr->log_data[17] = next_message.word1;
+	  board_data_ptr->log_data[18] = next_message.word2;
+	  board_data_ptr->log_data[19] = next_message.word3;
 	  break;
 
 	case ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_5:
-	  board_data_ptr->board_data[20] = next_message.word0;
-	  board_data_ptr->board_data[21] = next_message.word1;
-	  board_data_ptr->board_data[22] = next_message.word2;
-	  board_data_ptr->board_data[23] = next_message.word3;
+	  board_data_ptr->log_data[20] = next_message.word0;
+	  board_data_ptr->log_data[21] = next_message.word1;
+	  board_data_ptr->log_data[22] = next_message.word2;
+	  board_data_ptr->log_data[23] = next_message.word3;
 	  break;
 
 	case ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CONFIG_0:
-	  board_data_ptr->board_data[24] = next_message.word0;
-	  board_data_ptr->board_data[25] = next_message.word1;
-	  board_data_ptr->board_data[26] = next_message.word2;
-	  board_data_ptr->board_data[27] = next_message.word3;
+	  board_data_ptr->config_data[0] = next_message.word0;
+	  board_data_ptr->config_data[1] = next_message.word1;
+	  board_data_ptr->config_data[2] = next_message.word2;
+	  board_data_ptr->config_data[3] = next_message.word3;
 	  break;
 
 	case ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CONFIG_1:
-	  board_data_ptr->board_data[28] = next_message.word0;
-	  board_data_ptr->board_data[29] = next_message.word1;
-	  board_data_ptr->board_data[30] = next_message.word2;
-	  board_data_ptr->board_data[31] = next_message.word3;
+	  board_data_ptr->config_data[4] = next_message.word0;
+	  board_data_ptr->config_data[5] = next_message.word1;
+	  board_data_ptr->config_data[6] = next_message.word2;
+	  board_data_ptr->config_data[7] = next_message.word3;
 	  break;
 	  
 	default:
@@ -1231,25 +1252,25 @@ void SendSlaveReset(unsigned int board_id) {
 
 
 void ETMCanMasterClearDebug(void) {
-  debug_data_ecb.debug_0             = 0;
-  debug_data_ecb.debug_1             = 0;
-  debug_data_ecb.debug_2             = 0;
-  debug_data_ecb.debug_3             = 0;
+  debug_data_ecb.debug_reg[0]        = 0;
+  debug_data_ecb.debug_reg[1]        = 0;
+  debug_data_ecb.debug_reg[2]        = 0;
+  debug_data_ecb.debug_reg[3]        = 0;
 
-  debug_data_ecb.debug_4             = 0;
-  debug_data_ecb.debug_5             = 0;
-  debug_data_ecb.debug_6             = 0;
-  debug_data_ecb.debug_7             = 0;
+  debug_data_ecb.debug_reg[4]        = 0;
+  debug_data_ecb.debug_reg[5]        = 0;
+  debug_data_ecb.debug_reg[6]        = 0;
+  debug_data_ecb.debug_reg[7]        = 0;
 
-  debug_data_ecb.debug_8             = 0;
-  debug_data_ecb.debug_9             = 0;
-  debug_data_ecb.debug_A             = 0;
-  debug_data_ecb.debug_B             = 0;
+  debug_data_ecb.debug_reg[8]        = 0;
+  debug_data_ecb.debug_reg[9]        = 0;
+  debug_data_ecb.debug_reg[10]       = 0;
+  debug_data_ecb.debug_reg[11]       = 0;
 
-  debug_data_ecb.debug_C             = 0;
-  debug_data_ecb.debug_D             = 0;
-  debug_data_ecb.debug_E             = 0;
-  debug_data_ecb.debug_F             = 0;
+  debug_data_ecb.debug_reg[12]       = 0;
+  debug_data_ecb.debug_reg[13]       = 0;
+  debug_data_ecb.debug_reg[14]       = 0;
+  debug_data_ecb.debug_reg[15]       = 0;
 
 
   debug_data_ecb.can_tx_0            = 0;
