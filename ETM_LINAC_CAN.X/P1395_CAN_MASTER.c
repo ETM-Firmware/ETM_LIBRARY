@@ -55,14 +55,14 @@ ETMCanHighSpeedData         high_speed_data_buffer_b[HIGH_SPEED_DATA_BUFFER_SIZE
 
 
 // --------- Local Buffers ---------------- // 
-ETMCanMessageBuffer         etm_can_rx_data_log_buffer;
-ETMCanMessageBuffer         etm_can_rx_message_buffer;
-ETMCanMessageBuffer         etm_can_tx_message_buffer;
+ETMCanMessageBuffer         etm_can_master_rx_data_log_buffer;
+ETMCanMessageBuffer         etm_can_master_rx_message_buffer;
+ETMCanMessageBuffer         etm_can_master_tx_message_buffer;
 
 
 // ------------- Global Variables ------------ //
-unsigned int etm_can_next_pulse_level;
-unsigned int etm_can_next_pulse_count;
+unsigned int etm_can_master_next_pulse_level;
+unsigned int etm_can_master_next_pulse_count;
 
 
 // --------------------- Local Variables -------------------------- //
@@ -185,9 +185,9 @@ void ETMCanMasterInitialize(unsigned int requested_can_port, unsigned long fcy, 
   debug_data_ecb.reset_count = etm_can_persistent_data.reset_count;
   debug_data_ecb.can_timeout = etm_can_persistent_data.can_timeout_count;
 
-  ETMCanBufferInitialize(&etm_can_rx_message_buffer);
-  ETMCanBufferInitialize(&etm_can_tx_message_buffer);
-  ETMCanBufferInitialize(&etm_can_rx_data_log_buffer);
+  ETMCanBufferInitialize(&etm_can_master_rx_message_buffer);
+  ETMCanBufferInitialize(&etm_can_master_tx_message_buffer);
+  ETMCanBufferInitialize(&etm_can_master_rx_data_log_buffer);
 
 
   // Configure T4
@@ -351,8 +351,8 @@ void ETMCanMasterDoCan(void) {
 
 void ETMCanMasterProcessMessage(void) {
   ETMCanMessage next_message;
-  while (ETMCanBufferNotEmpty(&etm_can_rx_message_buffer)) {
-    ETMCanReadMessageFromBuffer(&etm_can_rx_message_buffer, &next_message);
+  while (ETMCanBufferNotEmpty(&etm_can_master_rx_message_buffer)) {
+    ETMCanReadMessageFromBuffer(&etm_can_master_rx_message_buffer, &next_message);
     if ((next_message.identifier & ETM_CAN_MASTER_RX0_MASK) == ETM_CAN_MSG_RTN_RX) {
       ETMCanMasterDataReturnFromSlave(&next_message);
     } else if ((next_message.identifier & ETM_CAN_MASTER_RX0_MASK) == ETM_CAN_MSG_STATUS_RX) {
@@ -362,9 +362,9 @@ void ETMCanMasterProcessMessage(void) {
     } 
   }
   
-  debug_data_ecb.can_tx_buf_overflow = etm_can_tx_message_buffer.message_overwrite_count;
-  debug_data_ecb.can_rx_buf_overflow = etm_can_rx_message_buffer.message_overwrite_count;
-  debug_data_ecb.can_rx_log_buf_overflow = etm_can_rx_data_log_buffer.message_overwrite_count;
+  debug_data_ecb.can_tx_buf_overflow = etm_can_master_tx_message_buffer.message_overwrite_count;
+  debug_data_ecb.can_rx_buf_overflow = etm_can_master_rx_message_buffer.message_overwrite_count;
+  debug_data_ecb.can_rx_log_buf_overflow = etm_can_master_rx_data_log_buffer.message_overwrite_count;
 }
 
 
@@ -505,7 +505,7 @@ void ETMCanMasterHVLambdaUpdateOutput(void) {
   can_message.word2 = local_hv_lambda_low_en_set_point;
   can_message.word1 = local_hv_lambda_high_en_set_point;
   can_message.word0 = 0;
-  ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+  ETMCanAddMessageToBuffer(&etm_can_master_tx_message_buffer, &can_message);
   MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
 }
 
@@ -516,7 +516,7 @@ void ETMCanMasterAFCUpdateHomeOffset(void) {
   can_message.word2 = local_afc_aft_control_voltage;
   can_message.word1 = 0;
   can_message.word0 = local_afc_home_position;
-  ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+  ETMCanAddMessageToBuffer(&etm_can_master_tx_message_buffer, &can_message);
   MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
 }
 
@@ -527,7 +527,7 @@ void ETMCanMasterHtrMagnetUpdateOutput(void) {
   can_message.word2 = 0;
   can_message.word1 = local_heater_current_scaled_set_point;
   can_message.word0 = local_magnet_current_set_point;
-  ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+  ETMCanAddMessageToBuffer(&etm_can_master_tx_message_buffer, &can_message);
   MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
 }
 
@@ -538,7 +538,7 @@ void ETMCanMasterGunDriverUpdatePulseTop(void) {
   can_message.word2 = 0;
   can_message.word1 = local_gun_drv_high_en_pulse_top_v;
   can_message.word0 = local_gun_drv_low_en_pulse_top_v;
-  ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+  ETMCanAddMessageToBuffer(&etm_can_master_tx_message_buffer, &can_message);
   MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
 }
 
@@ -549,7 +549,7 @@ void ETMCanMasterGunDriverUpdateHeaterCathode(void) {
   can_message.word2 = 0;
   can_message.word1 = local_gun_drv_cathode_set_point;
   can_message.word0 = local_gun_drv_heater_v_set_point;
-  ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+  ETMCanAddMessageToBuffer(&etm_can_master_tx_message_buffer, &can_message);
   MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
 }
 
@@ -560,7 +560,7 @@ void ETMCanMasterPulseSyncUpdateHighRegZero(void) {
   can_message.word2 = local_pulse_sync_timing_reg_0_word_2;
   can_message.word1 = local_pulse_sync_timing_reg_0_word_1;
   can_message.word0 = local_pulse_sync_timing_reg_0_word_0;
-  ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+  ETMCanAddMessageToBuffer(&etm_can_master_tx_message_buffer, &can_message);
   MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
 }
 
@@ -571,7 +571,7 @@ void ETMCanMasterPulseSyncUpdateHighRegOne(void) {
   can_message.word2 = local_pulse_sync_timing_reg_1_word_2;
   can_message.word1 = local_pulse_sync_timing_reg_1_word_1;
   can_message.word0 = local_pulse_sync_timing_reg_1_word_0;
-  ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+  ETMCanAddMessageToBuffer(&etm_can_master_tx_message_buffer, &can_message);
   MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
 }
 
@@ -582,7 +582,7 @@ void ETMCanMasterPulseSyncUpdateLowRegZero(void) {
   can_message.word2 = local_pulse_sync_timing_reg_2_word_2;
   can_message.word1 = local_pulse_sync_timing_reg_2_word_1;
   can_message.word0 = local_pulse_sync_timing_reg_2_word_0;
-  ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+  ETMCanAddMessageToBuffer(&etm_can_master_tx_message_buffer, &can_message);
   MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
 }
 
@@ -593,7 +593,7 @@ void ETMCanMasterPulseSyncUpdateLowRegOne(void) {
   can_message.word2 = local_pulse_sync_timing_reg_3_word_2;
   can_message.word1 = local_pulse_sync_timing_reg_3_word_1;
   can_message.word0 = local_pulse_sync_timing_reg_3_word_0;
-  ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+  ETMCanAddMessageToBuffer(&etm_can_master_tx_message_buffer, &can_message);
   MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
 }
 
@@ -758,8 +758,8 @@ void ETMCanMasterProcessLogData(void) {
   ETMCanHighSpeedData*   ptr_high_speed_data;
 
 
-  while (ETMCanBufferNotEmpty(&etm_can_rx_data_log_buffer)) {
-    ETMCanReadMessageFromBuffer(&etm_can_rx_data_log_buffer, &next_message);
+  while (ETMCanBufferNotEmpty(&etm_can_master_rx_data_log_buffer)) {
+    ETMCanReadMessageFromBuffer(&etm_can_master_rx_data_log_buffer, &next_message);
     data_log_index = next_message.identifier;
     data_log_index >>= 2;
     data_log_index &= 0x03FF;
@@ -1186,7 +1186,7 @@ void SendCalibrationSetPointToSlave(unsigned int index, unsigned int data_1, uns
   can_message.word2 = 0;
   can_message.word1 = data_1;
   can_message.word0 = data_0;
-  ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+  ETMCanAddMessageToBuffer(&etm_can_master_tx_message_buffer, &can_message);
   MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()  
 }
 
@@ -1201,7 +1201,7 @@ void ReadCalibrationSetPointFromSlave(unsigned int index) {
   can_message.word2 = 0;
   can_message.word1 = 0;
   can_message.word0 = 0;
-  ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+  ETMCanAddMessageToBuffer(&etm_can_master_tx_message_buffer, &can_message);
   MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()  
 }
 
@@ -1213,7 +1213,7 @@ void SendSlaveLoadDefaultEEpromData(unsigned int board_id) {
   can_message.word2 = 0;
   can_message.word1 = 0;
   can_message.word0 = 0;
-  ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+  ETMCanAddMessageToBuffer(&etm_can_master_tx_message_buffer, &can_message);
   MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()  
 }
 
@@ -1225,7 +1225,7 @@ void SendSlaveReset(unsigned int board_id) {
   can_message.word2 = 0;
   can_message.word1 = 0;
   can_message.word0 = 0;
-  ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &can_message);
+  ETMCanAddMessageToBuffer(&etm_can_master_tx_message_buffer, &can_message);
   MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()  
 }
 
@@ -1282,9 +1282,9 @@ void ETMCanMasterClearDebug(void) {
   debug_data_ecb.scale_error_count   = 0;
   //self test results
 
-  etm_can_tx_message_buffer.message_overwrite_count = 0;
-  etm_can_rx_message_buffer.message_overwrite_count = 0;
-  etm_can_rx_data_log_buffer.message_overwrite_count = 0;
+  etm_can_master_tx_message_buffer.message_overwrite_count = 0;
+  etm_can_master_rx_message_buffer.message_overwrite_count = 0;
+  etm_can_master_rx_data_log_buffer.message_overwrite_count = 0;
   etm_can_persistent_data.reset_count = 0;
   etm_can_persistent_data.can_timeout_count = 0;
 
@@ -1371,13 +1371,13 @@ void DoCanInterrupt(void) {
       // It is a Next Pulse Level Command 
       debug_data_ecb.can_rx_0_filt_0++;
       ETMCanRXMessage(&can_message, CXRX0CON_ptr);
-      etm_can_next_pulse_level = can_message.word1;
-      etm_can_next_pulse_count = can_message.word0;
+      etm_can_master_next_pulse_level = can_message.word1;
+      etm_can_master_next_pulse_count = can_message.word0;
 
       if (_SYNC_CONTROL_HIGH_SPEED_LOGGING) {
 	// Prepare the buffer to store the data
-	fast_log_buffer_index = etm_can_next_pulse_count & 0x000F;
-	if (etm_can_next_pulse_count & 0x0010) {
+	fast_log_buffer_index = etm_can_master_next_pulse_count & 0x000F;
+	if (etm_can_master_next_pulse_count & 0x0010) {
 	  // We are putting data into buffer A
 	  global_data_can_master.buffer_a_ready_to_send = 0;
 	  global_data_can_master.buffer_a_sent = 0;
@@ -1386,8 +1386,8 @@ void DoCanInterrupt(void) {
 	  }
 	  
 	  *(unsigned int*)&high_speed_data_buffer_a[fast_log_buffer_index].status_bits = 0; // clear the status bits register
-	  high_speed_data_buffer_a[fast_log_buffer_index].pulse_count = etm_can_next_pulse_count;
-	  if (etm_can_next_pulse_level) {
+	  high_speed_data_buffer_a[fast_log_buffer_index].pulse_count = etm_can_master_next_pulse_count;
+	  if (etm_can_master_next_pulse_level) {
 	    high_speed_data_buffer_a[fast_log_buffer_index].status_bits.high_energy_pulse = 1;
 	  }
 
@@ -1416,7 +1416,7 @@ void DoCanInterrupt(void) {
 	  
 
 
-	  high_speed_data_buffer_a[fast_log_buffer_index].ionpump_readback_high_energy_target_current_reading = etm_can_next_pulse_level;
+	  high_speed_data_buffer_a[fast_log_buffer_index].ionpump_readback_high_energy_target_current_reading = etm_can_master_next_pulse_level;
 
 	} else {
 	  // We are putting data into buffer B
@@ -1427,8 +1427,8 @@ void DoCanInterrupt(void) {
 	  }
 	  
 	  *(unsigned int*)&high_speed_data_buffer_b[fast_log_buffer_index].status_bits = 0; // Clear the status bits register
-	  high_speed_data_buffer_b[fast_log_buffer_index].pulse_count = etm_can_next_pulse_count;
-	  if (etm_can_next_pulse_level) {
+	  high_speed_data_buffer_b[fast_log_buffer_index].pulse_count = etm_can_master_next_pulse_count;
+	  if (etm_can_master_next_pulse_level) {
 	    high_speed_data_buffer_b[fast_log_buffer_index].status_bits.high_energy_pulse = 1;
 	  }
 	  
@@ -1456,14 +1456,14 @@ void DoCanInterrupt(void) {
 	  high_speed_data_buffer_b[fast_log_buffer_index].psync_readback_low_energy_grid_width_and_delay = 0;
 
 
-	  high_speed_data_buffer_b[fast_log_buffer_index].ionpump_readback_high_energy_target_current_reading = etm_can_next_pulse_level;
+	  high_speed_data_buffer_b[fast_log_buffer_index].ionpump_readback_high_energy_target_current_reading = etm_can_master_next_pulse_level;
 	}
       }
     } else {
       // The commmand was received by Filter 1
       // The command is a data log.  Add it to the data log buffer
       debug_data_ecb.can_rx_0_filt_1++;
-      ETMCanRXMessageBuffer(&etm_can_rx_data_log_buffer, CXRX0CON_ptr);
+      ETMCanRXMessageBuffer(&etm_can_master_rx_data_log_buffer, CXRX0CON_ptr);
     }
     *CXINTF_ptr &= RX1_INT_FLAG_BIT; // Clear the RX1 Interrupt Flag
   }
@@ -1474,16 +1474,16 @@ void DoCanInterrupt(void) {
        This command gets pushed onto the command message buffer
     */
     debug_data_ecb.can_rx_1_filt_2++;
-    ETMCanRXMessageBuffer(&etm_can_rx_message_buffer, CXRX1CON_ptr);
+    ETMCanRXMessageBuffer(&etm_can_master_rx_message_buffer, CXRX1CON_ptr);
     *CXINTF_ptr &= RX1_INT_FLAG_BIT; // Clear the RX1 Interrupt Flag
   }
 
-  if (!(*CXTX0CON_ptr & TX_REQ_BIT) && ((ETMCanBufferNotEmpty(&etm_can_tx_message_buffer)))) {  
+  if (!(*CXTX0CON_ptr & TX_REQ_BIT) && ((ETMCanBufferNotEmpty(&etm_can_master_tx_message_buffer)))) {  
     /*
       TX0 is empty and there is a message waiting in the transmit message buffer
       Load the next message into TX0
     */
-    ETMCanTXMessageBuffer(&etm_can_tx_message_buffer, CXTX0CON_ptr);
+    ETMCanTXMessageBuffer(&etm_can_master_tx_message_buffer, CXTX0CON_ptr);
     *CXINTF_ptr &= 0xFFFB; // Clear the TX0 Interrupt Flag
     debug_data_ecb.can_tx_0++;
   }

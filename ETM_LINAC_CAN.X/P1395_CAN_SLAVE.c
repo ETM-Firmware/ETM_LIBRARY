@@ -3,8 +3,6 @@
 #include "P1395_CAN_SLAVE.h"
 #include "ETM.h"
 
-const unsigned int p1395_can_slave_version = 0x0011;
-
 
 // ----------- Can Timers T4 & T5 Configuration ----------- //
 #define T4_FREQUENCY_HZ          10  // This is 100mS rate  // This is used to clock transmissions to the master.  A Status message and 1 of the 16 log messages is sent at every 100ms Interval
@@ -122,39 +120,23 @@ void ETMCanSlaveLogData(unsigned int packet_id, unsigned int word3, unsigned int
 
 
 
-
-
-
 // ------------------- Global Variables --------------------- //
-ETMCanMessageBuffer etm_can_rx_message_buffer;
-ETMCanMessageBuffer etm_can_tx_message_buffer;
-
-unsigned int etm_can_next_pulse_level;
-unsigned int etm_can_next_pulse_count;
-unsigned int etm_can_slave_com_loss;
-
-// Public Debug and Status registers
-unsigned int              etm_can_board_data[32];
-ETMCanStatusRegister      etm_can_status_register;
-ETMCanStandardLoggingData etm_can_log_data;
-ETMCanSyncMessage         etm_can_sync_message;
-
+ETMCanBoardData           slave_board_data;            // This contains information that is always mirrored on ECB
 
 
 // -------------------- local variables -------------------------- //
-unsigned int slave_data_log_index;
-unsigned int slave_data_log_sub_timer;
+ETMCanBoardDebuggingData  etm_can_slave_debug_data;    // This information is only mirrored on ECB if this module is selected on the GUI
+ETMCanSyncMessage         etm_can_slave_sync_message;  // This is the most recent sync message recieved from the ECB
+
+ETMCanMessageBuffer etm_can_slave_rx_message_buffer;
+ETMCanMessageBuffer etm_can_slave_tx_message_buffer;
+
+unsigned int slave_data_log_index;      
+unsigned int slave_data_log_sub_index;
+// These two variables are used to rotate through all the possible logging messages
+// One logging message is sent out once every 100ms
+
 unsigned int previous_ready_status;  // DPARKER - Need better name
-
-// ---------- Pointers to CAN stucutres so that we can use CAN1 or CAN2
-volatile unsigned int *CXEC_ptr;
-volatile unsigned int *CXINTF_ptr;
-volatile unsigned int *CXRX0CON_ptr;
-volatile unsigned int *CXRX1CON_ptr;
-volatile unsigned int *CXTX0CON_ptr;
-volatile unsigned int *CXTX1CON_ptr;
-volatile unsigned int *CXTX2CON_ptr;
-
 
 typedef struct {
   unsigned int reset_count;
@@ -169,8 +151,39 @@ typedef struct {
 } TYPE_CAN_PARAMETERS;
 
 TYPE_CAN_PARAMETERS can_params;
- 
 
+
+// ------------------- #defines for placement of data into the local_data memory block ---------------//
+#define etm_can_slave_next_pulse_level      slave_board_data.local_data[0]
+#define etm_can_slave_next_pulse_count      slave_board_data.local_data[1]
+#define etm_can_slave_com_loss              slave_board_data.local_data[2]
+
+// Board Configuration data - 0x06
+#define config_agile_number_high_word      slave_board_data.config_data[0]
+#define config_agile_number_low_word       slave_board_data.config_data[1]
+#define config_agile_dash                  slave_board_data.config_data[2]
+#define config_agile_rev_ascii             slave_board_data.config_data[3]
+
+// Board Configuration data - 0x07
+#define config_serial_number               slave_board_data.config_data[4]
+#define config_firmware_agile_rev          slave_board_data.config_data[5]
+#define config_firmware_branch             slave_board_data.config_data[6]
+#define config_firmware_branch_rev         slave_board_data.config_data[7]
+
+
+#define _SYNC_CONTROL_WORD                    *(unsigned int*)&etm_can_slave_sync_message.sync_0_control_word
+
+
+// ---------- Pointers to CAN stucutres so that we can use CAN1 or CAN2
+volatile unsigned int *CXEC_ptr;
+volatile unsigned int *CXINTF_ptr;
+volatile unsigned int *CXRX0CON_ptr;
+volatile unsigned int *CXRX1CON_ptr;
+volatile unsigned int *CXTX0CON_ptr;
+volatile unsigned int *CXTX1CON_ptr;
+volatile unsigned int *CXTX2CON_ptr;
+
+ 
 
 void ETMCanSlaveInitialize(unsigned int requested_can_port, unsigned long fcy, unsigned int etm_can_address, unsigned long can_operation_led, unsigned int can_interrupt_priority) {
   unsigned long timer_period_value;
@@ -185,19 +198,19 @@ void ETMCanSlaveInitialize(unsigned int requested_can_port, unsigned long fcy, u
   etm_can_persistent_data.reset_count++;
   
   _SYNC_CONTROL_WORD = 0;
-  etm_can_sync_message.sync_1_ecb_state_for_fault_logic = 0;
-  etm_can_sync_message.sync_2 = 0;
-  etm_can_sync_message.sync_3 = 0;
+  etm_can_slave_sync_message.sync_1_ecb_state_for_fault_logic = 0;
+  etm_can_slave_sync_message.sync_2 = 0;
+  etm_can_slave_sync_message.sync_3 = 0;
   
   etm_can_slave_com_loss = 0;
 
-  etm_can_log_data.reset_count = etm_can_persistent_data.reset_count;
-  etm_can_log_data.can_timeout = etm_can_persistent_data.can_timeout_count;
+  etm_can_slave_debug_data.reset_count = etm_can_persistent_data.reset_count;
+  etm_can_slave_debug_data.can_timeout = etm_can_persistent_data.can_timeout_count;
 
   ETMCanSlaveClearDebug();
   
-  ETMCanBufferInitialize(&etm_can_rx_message_buffer);
-  ETMCanBufferInitialize(&etm_can_tx_message_buffer);
+  ETMCanBufferInitialize(&etm_can_slave_rx_message_buffer);
+  ETMCanBufferInitialize(&etm_can_slave_tx_message_buffer);
   
   // Configure T4
   timer_period_value = fcy;
@@ -404,24 +417,24 @@ void ETMCanSlaveDoCan(void) {
   ETMCanSlaveTimedTransmit();
   ETMCanSlaveCheckForTimeOut();
   ETMCanSlaveSendUpdateIfNewNotReady();
-  if (_SYNC_CONTROL_CLEAR_DEBUG_DATA) {
+  if (etm_can_slave_sync_message.sync_0_control_word.sync_F_clear_debug_data) {
     ETMCanSlaveClearDebug();
   }
 
 
   // Log debugging information
-  etm_can_log_data.RCON_value = RCON;
+  etm_can_slave_debug_data.RCON_value = RCON;
   
   // Record the max TX counter
-  if ((*CXEC_ptr & 0xFF00) > (etm_can_log_data.CXEC_reg_max & 0xFF00)) {
-    etm_can_log_data.CXEC_reg_max &= 0x00FF;
-    etm_can_log_data.CXEC_reg_max += (*CXEC_ptr & 0xFF00);
+  if ((*CXEC_ptr & 0xFF00) > (etm_can_slave_debug_data.CXEC_reg_max & 0xFF00)) {
+    etm_can_slave_debug_data.CXEC_reg_max &= 0x00FF;
+    etm_can_slave_debug_data.CXEC_reg_max += (*CXEC_ptr & 0xFF00);
   }
   
   // Record the max RX counter
-  if ((*CXEC_ptr & 0x00FF) > (etm_can_log_data.CXEC_reg_max & 0x00FF)) {
-    etm_can_log_data.CXEC_reg_max &= 0xFF00;
-    etm_can_log_data.CXEC_reg_max += (*CXEC_ptr & 0x00FF);
+  if ((*CXEC_ptr & 0x00FF) > (etm_can_slave_debug_data.CXEC_reg_max & 0x00FF)) {
+    etm_can_slave_debug_data.CXEC_reg_max &= 0xFF00;
+    etm_can_slave_debug_data.CXEC_reg_max += (*CXEC_ptr & 0x00FF);
   }
 }
 
@@ -437,19 +450,19 @@ void ETMCanSlavePulseSyncSendNextPulseLevel(unsigned int next_pulse_level, unsig
   }
 
   ETMCanTXMessage(&message, CXTX2CON_ptr);
-  etm_can_log_data.can_tx_2++;
+  etm_can_slave_debug_data.can_tx_2++;
 }
 
 
 void ETMCanSlaveProcessMessage(void) {
   ETMCanMessage next_message;
-  while (ETMCanBufferNotEmpty(&etm_can_rx_message_buffer)) {
-    ETMCanReadMessageFromBuffer(&etm_can_rx_message_buffer, &next_message);
+  while (ETMCanBufferNotEmpty(&etm_can_slave_rx_message_buffer)) {
+    ETMCanReadMessageFromBuffer(&etm_can_slave_rx_message_buffer, &next_message);
     ETMCanSlaveExecuteCMD(&next_message);      
   }
   
-  etm_can_log_data.can_tx_buf_overflow = etm_can_tx_message_buffer.message_overwrite_count;
-  etm_can_log_data.can_rx_buf_overflow = etm_can_rx_message_buffer.message_overwrite_count;
+  etm_can_slave_debug_data.can_tx_buf_overflow = etm_can_slave_tx_message_buffer.message_overwrite_count;
+  etm_can_slave_debug_data.can_rx_buf_overflow = etm_can_slave_rx_message_buffer.message_overwrite_count;
 }
 
 
@@ -467,7 +480,7 @@ void ETMCanSlaveExecuteCMD(ETMCanMessage* message_ptr) {
   
   if ((index_word & 0xF000) != (can_params.address << 12)) {
     // The index is not addressed to this board
-    etm_can_log_data.can_invalid_index++;
+    etm_can_slave_debug_data.can_invalid_index++;
     return;
   }
   
@@ -487,7 +500,7 @@ void ETMCanSlaveExecuteCMD(ETMCanMessage* message_ptr) {
     ETMCanSlaveReturnCalibrationPair(message_ptr);
   } else {
     // It was not a command ID
-    etm_can_log_data.can_invalid_index++;
+    etm_can_slave_debug_data.can_invalid_index++;
   }
 }
 
@@ -510,7 +523,7 @@ void ETMCanSlaveExecuteCMDCommon(ETMCanMessage* message_ptr) {
  
   default:
     // The default command was not recognized 
-    etm_can_log_data.can_invalid_index++;
+    etm_can_slave_debug_data.can_invalid_index++;
     break;
   }
 }
@@ -541,7 +554,7 @@ void ETMCanSlaveReturnCalibrationPair(ETMCanMessage* message_ptr) {
   return_msg.word0 = ETMEEPromReadWord(index_word);
 
   // Send Message Back to ECB with data
-  ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &return_msg);
+  ETMCanAddMessageToBuffer(&etm_can_slave_tx_message_buffer, &return_msg);
   MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
 }
 
@@ -558,12 +571,12 @@ void ETMCanSlaveLogBoardData(unsigned int data_register) {
   data_register *= 4;
   
   ETMCanSlaveLogData(log_register,
-		     etm_can_board_data[data_register + 3],
-		     etm_can_board_data[data_register + 2],
-		     etm_can_board_data[data_register + 1],
-		     etm_can_board_data[data_register]);
-		     
+		     slave_board_data.log_data[data_register + 3],
+		     slave_board_data.log_data[data_register + 2],
+		     slave_board_data.log_data[data_register + 1],
+		     slave_board_data.log_data[data_register]);
 }
+
 
 void ETMCanSlaveTimedTransmit(void) {
   // Sends the debug information up as log data  
@@ -575,8 +588,8 @@ void ETMCanSlaveTimedTransmit(void) {
     if (slave_data_log_index >= 10) {
       slave_data_log_index = 0;
       
-      slave_data_log_sub_timer++;
-      slave_data_log_sub_timer &= 0b11;
+      slave_data_log_sub_index++;
+      slave_data_log_sub_index &= 0b11;
     }
     
     ETMCanSlaveSendStatus(); // Send out the status every 100mS
@@ -609,89 +622,99 @@ void ETMCanSlaveTimedTransmit(void) {
 	break;
       
       case 0x6:
-	if ((slave_data_log_sub_timer == 0) || (slave_data_log_sub_timer == 2)) {
+	if ((slave_data_log_sub_index == 0) || (slave_data_log_sub_index == 2)) {
 	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_0,
-			     etm_can_log_data.debug_0,
-			     etm_can_log_data.debug_1,
-			     etm_can_log_data.debug_2,
-			     etm_can_log_data.debug_3);
+			     etm_can_slave_debug_data.debug_reg[0],
+			     etm_can_slave_debug_data.debug_reg[1],
+			     etm_can_slave_debug_data.debug_reg[2],
+			     etm_can_slave_debug_data.debug_reg[3]);
 	} else {
 	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_1,
-			     etm_can_log_data.debug_4,
-			     etm_can_log_data.debug_5,
-			     etm_can_log_data.debug_6,
-			     etm_can_log_data.debug_7);
+			     etm_can_slave_debug_data.debug_reg[4],
+			     etm_can_slave_debug_data.debug_reg[5],
+			     etm_can_slave_debug_data.debug_reg[6],
+			     etm_can_slave_debug_data.debug_reg[7]);
 	}
 	break;
 
       case 0x7:
-	if ((slave_data_log_sub_timer == 0) || (slave_data_log_sub_timer == 2)) {
+	if ((slave_data_log_sub_index == 0) || (slave_data_log_sub_index == 2)) {
 	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_2,
-			     etm_can_log_data.debug_8,
-			     etm_can_log_data.debug_9,
-			     etm_can_log_data.debug_A,
-			     etm_can_log_data.debug_B);
+			     etm_can_slave_debug_data.debug_reg[8],
+			     etm_can_slave_debug_data.debug_reg[9],
+			     etm_can_slave_debug_data.debug_reg[10],
+			     etm_can_slave_debug_data.debug_reg[11]);
 	} else {
 	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_3,
-			     etm_can_log_data.debug_C,
-			     etm_can_log_data.debug_D,
-			     etm_can_log_data.debug_E,
-			     etm_can_log_data.debug_F);
+			     etm_can_slave_debug_data.debug_reg[12],
+			     etm_can_slave_debug_data.debug_reg[13],
+			     etm_can_slave_debug_data.debug_reg[14],
+			     etm_can_slave_debug_data.debug_reg[15]);
 	}
 	break;
 
       case 0x8:
-	if (slave_data_log_sub_timer == 0) {
+	if (slave_data_log_sub_index == 0) {
 	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CAN_ERROR_0,
-			     etm_can_log_data.can_tx_0,
-			     etm_can_log_data.can_tx_1,
-			     etm_can_log_data.can_tx_2,
-			     etm_can_log_data.CXEC_reg_max);
+			     etm_can_slave_debug_data.can_tx_0,
+			     etm_can_slave_debug_data.can_tx_1,
+			     etm_can_slave_debug_data.can_tx_2,
+			     etm_can_slave_debug_data.CXEC_reg_max);
 			     
 
 
 
-	} else if (slave_data_log_sub_timer == 1) {
+	} else if (slave_data_log_sub_index == 1) {
 	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CAN_ERROR_1,
-			     etm_can_log_data.can_rx_0_filt_0,
-			     etm_can_log_data.can_rx_0_filt_1,
-			     etm_can_log_data.can_rx_1_filt_2,
-			     etm_can_log_data.CXINTF_max);
+			     etm_can_slave_debug_data.can_rx_0_filt_0,
+			     etm_can_slave_debug_data.can_rx_0_filt_1,
+			     etm_can_slave_debug_data.can_rx_1_filt_2,
+			     etm_can_slave_debug_data.CXINTF_max);
 	  
-	} else if (slave_data_log_sub_timer == 2) {
+	} else if (slave_data_log_sub_index == 2) {
 	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CAN_ERROR_2,
-			     etm_can_log_data.can_unknown_msg_id,
-			     etm_can_log_data.can_invalid_index,
-			     etm_can_log_data.can_address_error,
-			     etm_can_log_data.can_error_flag);
+			     etm_can_slave_debug_data.can_unknown_msg_id,
+			     etm_can_slave_debug_data.can_invalid_index,
+			     etm_can_slave_debug_data.can_address_error,
+			     etm_can_slave_debug_data.can_error_flag);
 
 	} else {
 	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CAN_ERROR_3,
-			     etm_can_log_data.can_tx_buf_overflow,
-			     etm_can_log_data.can_rx_buf_overflow,
-			     etm_can_log_data.can_rx_log_buf_overflow,
-			     etm_can_log_data.can_timeout);
+			     etm_can_slave_debug_data.can_tx_buf_overflow,
+			     etm_can_slave_debug_data.can_rx_buf_overflow,
+			     etm_can_slave_debug_data.can_rx_log_buf_overflow,
+			     etm_can_slave_debug_data.can_timeout);
 	}
 	break;
 
       case 0x9:
-	if (slave_data_log_sub_timer == 0) {
-	  ETMCanSlaveLogBoardData(6);
-	} else if (slave_data_log_sub_timer == 1) {
-	  ETMCanSlaveLogBoardData(7);
-	} else if (slave_data_log_sub_timer == 2) {
+	if (slave_data_log_sub_index == 0) {
+	    ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CONFIG_0,
+			       config_agile_number_high_word,
+			       config_agile_number_low_word,
+			       config_agile_dash,
+			       config_agile_rev_ascii);
+
+	} else if (slave_data_log_sub_index == 1) {
+	    ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CONFIG_0,
+			       config_serial_number,
+			       config_firmware_agile_rev,
+			       config_firmware_branch,
+			       config_firmware_branch_rev);
+
+	} else if (slave_data_log_sub_index == 2) {
 	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_SYSTEM_ERROR_0, 
-			     etm_can_log_data.reset_count, 
-			     etm_can_log_data.RCON_value,
-			     etm_can_log_data.reserved_1, 
-			     etm_can_log_data.reserved_0);	  	  
+			     etm_can_slave_debug_data.reset_count, 
+			     etm_can_slave_debug_data.RCON_value,
+			     etm_can_slave_debug_data.reserved_1, 
+			     etm_can_slave_debug_data.reserved_0);	  	  
 
 	} else {
 	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_SYSTEM_ERROR_1, 
-			     etm_can_log_data.i2c_bus_error_count, 
-			     etm_can_log_data.spi_bus_error_count,
-			     etm_can_log_data.scale_error_count,
-			     *(unsigned int*)&etm_can_log_data.self_test_results);      
+			     etm_can_slave_debug_data.i2c_bus_error_count, 
+			     etm_can_slave_debug_data.spi_bus_error_count,
+			     etm_can_slave_debug_data.scale_error_count,
+			     *(unsigned int*)&etm_can_slave_debug_data.self_test_results);      
 	}
 	break;
       }
@@ -709,7 +732,7 @@ void ETMCanSlaveSendStatus(void) {
   message.word3 = 0;
 
   ETMCanTXMessage(&message, CXTX1CON_ptr);  
-  etm_can_log_data.can_tx_1++;
+  etm_can_slave_debug_data.can_tx_1++;
 }
 
 
@@ -731,15 +754,15 @@ void ETMCanSlaveLogData(unsigned int packet_id, unsigned int word3, unsigned int
   log_message.word2 = word2;
   log_message.word3 = word3;
   
-  ETMCanAddMessageToBuffer(&etm_can_tx_message_buffer, &log_message);
+  ETMCanAddMessageToBuffer(&etm_can_slave_tx_message_buffer, &log_message);
   MacroETMCanCheckTXBuffer();
 }
 
 void ETMCanSlaveCheckForTimeOut(void) {
   if (_T5IF) {
     _T5IF = 0;
-    etm_can_log_data.can_timeout++;
-    etm_can_persistent_data.can_timeout_count = etm_can_log_data.can_timeout;
+    etm_can_slave_debug_data.can_timeout++;
+    etm_can_persistent_data.can_timeout_count = etm_can_slave_debug_data.can_timeout;
     etm_can_slave_com_loss = 1;
   }
 }
@@ -765,9 +788,9 @@ void ETMCanSlaveDoSync(ETMCanMessage* message_ptr) {
   // Therefore the Slave boards should NEVER WRITE ANYTHING in _SYNC_CONTROL_WORD
 
   _SYNC_CONTROL_WORD = message_ptr->word0;
-  etm_can_sync_message.sync_1_ecb_state_for_fault_logic = message_ptr->word1;
-  etm_can_sync_message.sync_2 = message_ptr->word2;
-  etm_can_sync_message.sync_3 = message_ptr->word3;
+  etm_can_slave_sync_message.sync_1_ecb_state_for_fault_logic = message_ptr->word1;
+  etm_can_slave_sync_message.sync_2 = message_ptr->word2;
+  etm_can_slave_sync_message.sync_3 = message_ptr->word3;
   
   ClrWdt();
   etm_can_slave_com_loss = 0;
@@ -791,59 +814,59 @@ void ETMCanSlaveDoSync(ETMCanMessage* message_ptr) {
 
 
 void ETMCanSlaveClearDebug(void) {
-  etm_can_log_data.debug_0             = 0;
-  etm_can_log_data.debug_1             = 0;
-  etm_can_log_data.debug_2             = 0;
-  etm_can_log_data.debug_3             = 0;
+  etm_can_slave_debug_data.debug_reg[0]        = 0;
+  etm_can_slave_debug_data.debug_reg[1]        = 0;
+  etm_can_slave_debug_data.debug_reg[2]        = 0;
+  etm_can_slave_debug_data.debug_reg[3]        = 0;
 
-  etm_can_log_data.debug_4             = 0;
-  etm_can_log_data.debug_5             = 0;
-  etm_can_log_data.debug_6             = 0;
-  etm_can_log_data.debug_7             = 0;
+  etm_can_slave_debug_data.debug_reg[4]        = 0;
+  etm_can_slave_debug_data.debug_reg[5]        = 0;
+  etm_can_slave_debug_data.debug_reg[6]        = 0;
+  etm_can_slave_debug_data.debug_reg[7]        = 0;
 
-  etm_can_log_data.debug_8             = 0;
-  etm_can_log_data.debug_9             = 0;
-  etm_can_log_data.debug_A             = 0;
-  etm_can_log_data.debug_B             = 0;
+  etm_can_slave_debug_data.debug_reg[8]        = 0;
+  etm_can_slave_debug_data.debug_reg[9]        = 0;
+  etm_can_slave_debug_data.debug_reg[10]       = 0;
+  etm_can_slave_debug_data.debug_reg[11]       = 0;
 
-  etm_can_log_data.debug_C             = 0;
-  etm_can_log_data.debug_D             = 0;
-  etm_can_log_data.debug_E             = 0;
-  etm_can_log_data.debug_F             = 0;
+  etm_can_slave_debug_data.debug_reg[12]       = 0;
+  etm_can_slave_debug_data.debug_reg[13]       = 0;
+  etm_can_slave_debug_data.debug_reg[14]       = 0;
+  etm_can_slave_debug_data.debug_reg[15]       = 0;
 
 
-  etm_can_log_data.can_tx_0            = 0;
-  etm_can_log_data.can_tx_1            = 0;
-  etm_can_log_data.can_tx_2            = 0;
-  etm_can_log_data.CXEC_reg_max        = 0;
+  etm_can_slave_debug_data.can_tx_0            = 0;
+  etm_can_slave_debug_data.can_tx_1            = 0;
+  etm_can_slave_debug_data.can_tx_2            = 0;
+  etm_can_slave_debug_data.CXEC_reg_max        = 0;
 
-  etm_can_log_data.can_rx_0_filt_0     = 0;
-  etm_can_log_data.can_rx_0_filt_1     = 0;
-  etm_can_log_data.can_rx_1_filt_2     = 0;
-  etm_can_log_data.CXINTF_max          = 0;
+  etm_can_slave_debug_data.can_rx_0_filt_0     = 0;
+  etm_can_slave_debug_data.can_rx_0_filt_1     = 0;
+  etm_can_slave_debug_data.can_rx_1_filt_2     = 0;
+  etm_can_slave_debug_data.CXINTF_max          = 0;
 
-  etm_can_log_data.can_unknown_msg_id  = 0;
-  etm_can_log_data.can_invalid_index   = 0;
-  etm_can_log_data.can_address_error   = 0;
-  etm_can_log_data.can_error_flag      = 0;
+  etm_can_slave_debug_data.can_unknown_msg_id  = 0;
+  etm_can_slave_debug_data.can_invalid_index   = 0;
+  etm_can_slave_debug_data.can_address_error   = 0;
+  etm_can_slave_debug_data.can_error_flag      = 0;
 
-  etm_can_log_data.can_tx_buf_overflow = 0;
-  etm_can_log_data.can_rx_buf_overflow = 0;
-  etm_can_log_data.can_rx_log_buf_overflow = 0;
-  etm_can_log_data.can_timeout         = 0;
+  etm_can_slave_debug_data.can_tx_buf_overflow = 0;
+  etm_can_slave_debug_data.can_rx_buf_overflow = 0;
+  etm_can_slave_debug_data.can_rx_log_buf_overflow = 0;
+  etm_can_slave_debug_data.can_timeout         = 0;
 
-  etm_can_log_data.reset_count         = 0;
-  etm_can_log_data.RCON_value          = 0;
-  etm_can_log_data.reserved_1          = 0;
-  etm_can_log_data.reserved_0          = 0;
+  etm_can_slave_debug_data.reset_count         = 0;
+  etm_can_slave_debug_data.RCON_value          = 0;
+  etm_can_slave_debug_data.reserved_1          = 0;
+  etm_can_slave_debug_data.reserved_0          = 0;
 
-  etm_can_log_data.i2c_bus_error_count = 0;
-  etm_can_log_data.spi_bus_error_count = 0;
-  etm_can_log_data.scale_error_count   = 0;
+  etm_can_slave_debug_data.i2c_bus_error_count = 0;
+  etm_can_slave_debug_data.spi_bus_error_count = 0;
+  etm_can_slave_debug_data.scale_error_count   = 0;
   //self test results
 
-  etm_can_tx_message_buffer.message_overwrite_count = 0;
-  etm_can_rx_message_buffer.message_overwrite_count = 0;
+  etm_can_slave_tx_message_buffer.message_overwrite_count = 0;
+  etm_can_slave_rx_message_buffer.message_overwrite_count = 0;
   etm_can_persistent_data.reset_count = 0;
   etm_can_persistent_data.can_timeout_count = 0;
 
@@ -877,21 +900,21 @@ void __attribute__((interrupt(__save__(CORCON,SR)), no_auto_psv)) _C2Interrupt(v
 void DoCanInterrupt(void) {
   ETMCanMessage can_message;
 
-  etm_can_log_data.CXINTF_max |= *CXINTF_ptr;
+  etm_can_slave_debug_data.CXINTF_max |= *CXINTF_ptr;
   
   if (*CXRX0CON_ptr & BUFFER_FULL_BIT) {
     // A message has been received in Buffer Zero
     if (!(*CXRX0CON_ptr & FILTER_SELECT_BIT)) {
       // The command was received by Filter 0
       // It is a Next Pulse Level Command
-      etm_can_log_data.can_rx_0_filt_0++;
+      etm_can_slave_debug_data.can_rx_0_filt_0++;
       ETMCanRXMessage(&can_message, CXRX0CON_ptr);
-      etm_can_next_pulse_level = can_message.word1;
-      etm_can_next_pulse_count = can_message.word0;
+      etm_can_slave_next_pulse_level = can_message.word1;
+      etm_can_slave_next_pulse_count = can_message.word0;
     } else {
       // The commmand was received by Filter 1
       // The command is a sync command.
-      etm_can_log_data.can_rx_0_filt_1++;
+      etm_can_slave_debug_data.can_rx_0_filt_1++;
       ETMCanRXMessage(&can_message, CXRX0CON_ptr);
       ETMCanSlaveDoSync(&can_message);
     }
@@ -903,26 +926,26 @@ void DoCanInterrupt(void) {
        A message has been recieved in Buffer 1
        This command gets pushed onto the command message buffer
     */
-    etm_can_log_data.can_rx_1_filt_2++;
-    ETMCanRXMessageBuffer(&etm_can_rx_message_buffer, CXRX1CON_ptr);
+    etm_can_slave_debug_data.can_rx_1_filt_2++;
+    ETMCanRXMessageBuffer(&etm_can_slave_rx_message_buffer, CXRX1CON_ptr);
     *CXINTF_ptr &= RX1_INT_FLAG_BIT; // Clear the RX1 Interrupt Flag
   }
 
-  if (!(*CXTX0CON_ptr & TX_REQ_BIT) && ((ETMCanBufferNotEmpty(&etm_can_tx_message_buffer)))) {
+  if (!(*CXTX0CON_ptr & TX_REQ_BIT) && ((ETMCanBufferNotEmpty(&etm_can_slave_tx_message_buffer)))) {
     /*
       TX0 is empty and there is a message waiting in the transmit message buffer
       Load the next message into TX0
     */
-    ETMCanTXMessageBuffer(&etm_can_tx_message_buffer, CXTX0CON_ptr);
+    ETMCanTXMessageBuffer(&etm_can_slave_tx_message_buffer, CXTX0CON_ptr);
     *CXINTF_ptr &= 0xFFFB; // Clear the TX0 Interrupt Flag
-    etm_can_log_data.can_tx_0++;
+    etm_can_slave_debug_data.can_tx_0++;
   }
   
   if (*CXINTF_ptr & ERROR_FLAG_BIT) {
     // There was some sort of CAN Error
     // DPARKER - figure out which error and fix/reset
-    etm_can_log_data.CXINTF_max |= *CXINTF_ptr;
-    etm_can_log_data.can_error_flag++;
+    etm_can_slave_debug_data.CXINTF_max |= *CXINTF_ptr;
+    etm_can_slave_debug_data.can_error_flag++;
     *CXINTF_ptr &= ~ERROR_FLAG_BIT; // Clear the ERR Flag
   } else {
     // FLASH THE CAN LED
@@ -934,6 +957,100 @@ void DoCanInterrupt(void) {
   }
 }
 
+void ETMCanSlaveSetDebugRegister(unsigned int debug_register, unsigned int debug_value) {
+  if (debug_register >= 0x000F) {
+    return;
+  }
+  etm_can_slave_debug_data.debug_reg[debug_register] = debug_value;
+}
+
+unsigned int ETMCanSlaveGetNextPulseLevel(void) {
+  return etm_can_slave_next_pulse_level;
+}
+
+unsigned int ETMCanSlaveGetNextPulseCount(void) {
+  return etm_can_slave_next_pulse_count;
+}
+
+unsigned int ETMCanSlaveGetComFaultStatus(void) {
+  return etm_can_slave_com_loss;
+}
+
+unsigned int ETMCanSlaveGetSyncMsgResetEnable(void) {
+  if (etm_can_slave_sync_message.sync_0_control_word.sync_0_reset_enable) {
+    return 0xFFFF;
+  } else {
+    return 0;
+  }
+}
+
+unsigned int ETMCanSlaveGetSyncMsgHighSpeedLogging(void) {
+  if (etm_can_slave_sync_message.sync_0_control_word.sync_1_high_speed_logging_enabled) {
+    return 0xFFFF;
+  } else {
+    return 0;
+  }
+}
+
+unsigned int ETMCanSlaveGetSyncMsgPulseSyncDisableHV(void) {
+  if (etm_can_slave_sync_message.sync_0_control_word.sync_2_pulse_sync_disable_hv) {
+    return 0xFFFF;
+  } else {
+    return 0;
+  }
+}
+
+unsigned int ETMCanSlaveGetSyncMsgPulseSyncDisableXray(void) {
+  if (etm_can_slave_sync_message.sync_0_control_word.sync_3_pulse_sync_disable_xray) {
+    return 0xFFFF;
+  } else {
+    return 0;
+  }
+}
+
+unsigned int ETMCanSlaveGetSyncMsgCoolingFault(void) {
+  if (etm_can_slave_sync_message.sync_0_control_word.sync_4_cooling_fault) {
+    return 0xFFFF;
+  } else {
+    return 0;
+  }
+}
+
+unsigned int ETMCanSlaveGetSyncMsgPulseSyncWarmupLED(void) {
+  if (etm_can_slave_sync_message.sync_0_control_word.sync_A_pulse_sync_warmup_led_on) {
+    return 0xFFFF;
+  } else {
+    return 0;
+  }
+}
+
+unsigned int ETMCanSlaveGetSyncMsgPulseSyncStandbyLED(void) {
+  if (etm_can_slave_sync_message.sync_0_control_word.sync_B_pulse_sync_standby_led_on) {
+    return 0xFFFF;
+  } else {
+    return 0;
+  }
+}
+
+unsigned int ETMCanSlaveGetSyncMsgPulseSyncReadyLED(void) {
+  if (etm_can_slave_sync_message.sync_0_control_word.sync_C_pulse_sync_ready_led_on) {
+    return 0xFFFF;
+  } else {
+    return 0;
+  }
+}
+
+unsigned int ETMCanSlaveGetSyncMsgPulseSyncFaultLED(void) {
+  if (etm_can_slave_sync_message.sync_0_control_word.sync_D_pulse_sync_fault_led_on) {
+    return 0xFFFF;
+  } else {
+    return 0;
+  }
+}
+
+unsigned int ETMCanSlaveGetSyncMsgECBState(void) {
+  return etm_can_slave_sync_message.sync_1_ecb_state_for_fault_logic;
+}
 
 
 
