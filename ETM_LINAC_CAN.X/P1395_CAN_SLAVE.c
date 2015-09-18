@@ -366,7 +366,7 @@ void ETMCanSlaveInitialize(unsigned int requested_can_port, unsigned long fcy, u
     // Load Filter registers
     C2RXF0SID = ETM_CAN_SLAVE_MSG_FILTER_RF0;
     C2RXF1SID = ETM_CAN_SLAVE_MSG_FILTER_RF1;
-    C2RXF2SID = (ETM_CAN_SLAVE_MSG_FILTER_RF2 | (can_params.address << 2));
+    C2RXF2SID = ETM_CAN_SLAVE_MSG_FILTER_RF2; //(ETM_CAN_SLAVE_MSG_FILTER_RF2 | (can_params.address << 2));
     //C2RXF3SID = ETM_CAN_MSG_FILTER_OFF;
     //C2RXF4SID = ETM_CAN_MSG_FILTER_OFF;
     //C2RXF5SID = ETM_CAN_MSG_FILTER_OFF;
@@ -418,7 +418,7 @@ void ETMCanSlaveDoCan(void) {
   ETMCanSlaveCheckForTimeOut();
   ETMCanSlaveSendUpdateIfNewNotReady();
   if (etm_can_slave_sync_message.sync_0_control_word.sync_F_clear_debug_data) {
-    ETMCanSlaveClearDebug();
+    //ETMCanSlaveClearDebug();  // DPARKER TESTING
   }
 
 
@@ -558,7 +558,7 @@ void ETMCanSlaveReturnCalibrationPair(ETMCanMessage* message_ptr) {
   MacroETMCanCheckTXBuffer();  // DPARKER - Figure out how to build this into ETMCanAddMessageToBuffer()
 }
 
-
+/*
 void ETMCanSlaveLogBoardData(unsigned int data_register) {
   unsigned int log_register;
   if (data_register >= 6) {
@@ -576,7 +576,7 @@ void ETMCanSlaveLogBoardData(unsigned int data_register) {
 		     slave_board_data.log_data[data_register + 1],
 		     slave_board_data.log_data[data_register]);
 }
-
+*/
 
 void ETMCanSlaveTimedTransmit(void) {
   // Sends the debug information up as log data  
@@ -591,37 +591,61 @@ void ETMCanSlaveTimedTransmit(void) {
       slave_data_log_sub_index++;
       slave_data_log_sub_index &= 0b11;
     }
-    
+
     ETMCanSlaveSendStatus(); // Send out the status every 100mS
 
     // Also send out one bit of logging data every 100mS
     switch (slave_data_log_index) 
       {
-      case 0x0:
-	ETMCanSlaveLogBoardData(0);
+      case 0:
+      ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_0,
+			 slave_board_data.log_data[3],
+			 slave_board_data.log_data[2],
+			 slave_board_data.log_data[1],
+			 slave_board_data.log_data[0]);
 	break;
 	
-      case 0x1:
-	ETMCanSlaveLogBoardData(1);
+      case 1:
+      ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_1,
+			 slave_board_data.log_data[7],
+			 slave_board_data.log_data[6],
+			 slave_board_data.log_data[5],
+			 slave_board_data.log_data[4]);
 	break;
 
-      case 0x2:
-	ETMCanSlaveLogBoardData(2);
+      case 2:
+      ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_2,
+			 slave_board_data.log_data[11],
+			 slave_board_data.log_data[10],
+			 slave_board_data.log_data[9],
+			 slave_board_data.log_data[8]);
 	break;
 
-      case 0x3:
-	ETMCanSlaveLogBoardData(3);
+      case 3:
+      ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_3,
+			 slave_board_data.log_data[15],
+			 slave_board_data.log_data[14],
+			 slave_board_data.log_data[13],
+			 slave_board_data.log_data[12]);
 	break;
 
-      case 0x4:
-	ETMCanSlaveLogBoardData(4);
+      case 4:
+      ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_4,
+			 slave_board_data.log_data[19],
+			 slave_board_data.log_data[18],
+			 slave_board_data.log_data[17],
+			 slave_board_data.log_data[16]);
 	break;
 
-      case 0x5:
-	ETMCanSlaveLogBoardData(5);
+      case 5:
+      ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_5,
+			 slave_board_data.log_data[23],
+			 slave_board_data.log_data[22],
+			 slave_board_data.log_data[21],
+			 slave_board_data.log_data[20]);
 	break;
       
-      case 0x6:
+      case 6:
 	if ((slave_data_log_sub_index == 0) || (slave_data_log_sub_index == 2)) {
 	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_0,
 			     etm_can_slave_debug_data.debug_reg[0],
@@ -637,7 +661,7 @@ void ETMCanSlaveTimedTransmit(void) {
 	}
 	break;
 
-      case 0x7:
+      case 7:
 	if ((slave_data_log_sub_index == 0) || (slave_data_log_sub_index == 2)) {
 	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_2,
 			     etm_can_slave_debug_data.debug_reg[8],
@@ -653,7 +677,7 @@ void ETMCanSlaveTimedTransmit(void) {
 	}
 	break;
 
-      case 0x8:
+      case 8:
 	if (slave_data_log_sub_index == 0) {
 	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CAN_ERROR_0,
 			     etm_can_slave_debug_data.can_tx_0,
@@ -687,7 +711,7 @@ void ETMCanSlaveTimedTransmit(void) {
 	}
 	break;
 
-      case 0x9:
+      case 9:
 	if (slave_data_log_sub_index == 0) {
 	    ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CONFIG_0,
 			       config_agile_number_high_word,
@@ -696,7 +720,7 @@ void ETMCanSlaveTimedTransmit(void) {
 			       config_agile_rev_ascii);
 
 	} else if (slave_data_log_sub_index == 1) {
-	    ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CONFIG_0,
+	    ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_CONFIG_1,
 			       config_serial_number,
 			       config_firmware_agile_rev,
 			       config_firmware_branch,
@@ -731,10 +755,30 @@ void ETMCanSlaveSendStatus(void) {
   message.word2 = _WARNING_REGISTER;
   message.word3 = 0;
 
+  message.word0 = 0x1020;
+  message.word1 = 0x0304;
+  message.word2 = 0xF0F0;
+  message.word3 = 0x0F0F;
+
   ETMCanTXMessage(&message, CXTX1CON_ptr);  
   etm_can_slave_debug_data.can_tx_1++;
+  
+  _NOTICE_0 = 0;
+  _NOTICE_1 = 0;
+  _NOTICE_2 = 0;
+  _NOTICE_3 = 0;
+  _NOTICE_4 = 0;
+  _NOTICE_5 = 0;
+  _NOTICE_6 = 0;
+  _NOTICE_7 = 0;
+  
+
 }
 
+
+void ETMCanSlaveLogPulseData(unsigned int packet_id, unsigned int word3, unsigned int word2, unsigned int word1, unsigned int word0) {
+  ETMCanSlaveLogData(packet_id, word3, word2, word1, word0);
+}
 
 void ETMCanSlaveLogData(unsigned int packet_id, unsigned int word3, unsigned int word2, unsigned int word1, unsigned int word0) {
   ETMCanMessage log_message;
@@ -779,18 +823,35 @@ void ETMCanSlaveSendUpdateIfNewNotReady(void) {
 }
 
 
+unsigned int test0;
+unsigned int test1;
+unsigned int test2;
+unsigned int test3;
+
+
 
 void ETMCanSlaveDoSync(ETMCanMessage* message_ptr) {
+  
+
   // Sync data is available in CXRX0B1->CXRX0B4
   // DPARKER move to assembly and issure W0-W3, SR usage
 
   // It should be noted that if any of these registers are written ANYWHERE else, then they can be bashed
   // Therefore the Slave boards should NEVER WRITE ANYTHING in _SYNC_CONTROL_WORD
 
+
   _SYNC_CONTROL_WORD = message_ptr->word0;
   etm_can_slave_sync_message.sync_1_ecb_state_for_fault_logic = message_ptr->word1;
   etm_can_slave_sync_message.sync_2 = message_ptr->word2;
   etm_can_slave_sync_message.sync_3 = message_ptr->word3;
+
+
+  test0 = _SYNC_CONTROL_WORD;
+  test1 = etm_can_slave_sync_message.sync_1_ecb_state_for_fault_logic;
+  test2 = etm_can_slave_sync_message.sync_2;
+  test3 = etm_can_slave_sync_message.sync_3;
+
+
   
   ClrWdt();
   etm_can_slave_com_loss = 0;
@@ -958,17 +1019,17 @@ void DoCanInterrupt(void) {
 }
 
 void ETMCanSlaveSetDebugRegister(unsigned int debug_register, unsigned int debug_value) {
-  if (debug_register >= 0x000F) {
+  if (debug_register > 0x000F) {
     return;
   }
   etm_can_slave_debug_data.debug_reg[debug_register] = debug_value;
 }
 
-unsigned int ETMCanSlaveGetNextPulseLevel(void) {
+unsigned int ETMCanSlaveGetPulseLevel(void) {
   return etm_can_slave_next_pulse_level;
 }
 
-unsigned int ETMCanSlaveGetNextPulseCount(void) {
+unsigned int ETMCanSlaveGetPulseCount(void) {
   return etm_can_slave_next_pulse_count;
 }
 
@@ -1015,6 +1076,17 @@ unsigned int ETMCanSlaveGetSyncMsgCoolingFault(void) {
     return 0;
   }
 }
+
+unsigned int ETMCanSlaveGetSyncMsgClearDebug(void) {
+  if (etm_can_slave_sync_message.sync_0_control_word.sync_F_clear_debug_data) {
+    return 0xFFFF;
+  } else {
+    return 0;
+  }
+}
+
+
+
 
 unsigned int ETMCanSlaveGetSyncMsgPulseSyncWarmupLED(void) {
   if (etm_can_slave_sync_message.sync_0_control_word.sync_A_pulse_sync_warmup_led_on) {

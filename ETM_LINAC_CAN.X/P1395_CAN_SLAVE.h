@@ -28,13 +28,13 @@ void ETMCanSlaveDoCan(void);
 */
 
 
-void ETMCanSlaveLogBoardData(unsigned int data_register);
+void ETMCanSlaveLogPulseData(unsigned int packet_id, unsigned int word3, unsigned int word2, unsigned int word1, unsigned int word0);
 /*
-  This is use to manualy send a data logging message
+  This is used to log pulse by pulse data
 */
 
 
-unsigned int ETMCanSlaveGetNextPulseLevel(void);
+unsigned int ETMCanSlaveGetPulseLevel(void);
 /*
   Returns the next pulse level (as set by the pulse sync board)
   Returns 0x0000 if the next pulse should be low energy
@@ -42,7 +42,7 @@ unsigned int ETMCanSlaveGetNextPulseLevel(void);
 */
 
 
-unsigned int ETMCanSlaveGetNextPulseCount(void);
+unsigned int ETMCanSlaveGetPulseCount(void);
 /*
   Returns the next pulse count (as set by the pulse sync board)
 */
@@ -67,6 +67,7 @@ unsigned int ETMCanSlaveGetSyncMsgHighSpeedLogging(void);
 unsigned int ETMCanSlaveGetSyncMsgPulseSyncDisableHV(void);
 unsigned int ETMCanSlaveGetSyncMsgPulseSyncDisableXray(void);
 unsigned int ETMCanSlaveGetSyncMsgCoolingFault(void);
+unsigned int ETMCanSlaveGetSyncMsgClearDebug(void);
 unsigned int ETMCanSlaveGetSyncMsgPulseSyncWarmupLED(void);
 unsigned int ETMCanSlaveGetSyncMsgPulseSyncStandbyLED(void);
 unsigned int ETMCanSlaveGetSyncMsgPulseSyncReadyLED(void);
@@ -148,11 +149,29 @@ extern ETMCanBoardData           slave_board_data;            // This contains i
 #define _WARNING_E                    slave_board_data.status.warning_bits.warning_E
 #define _WARNING_F                    slave_board_data.status.warning_bits.warning_F
 
+#define _NOT_LOGGED_0                 slave_board_data.status.not_logged_bits.not_logged_0
+#define _NOT_LOGGED_1                 slave_board_data.status.not_logged_bits.not_logged_1
+#define _NOT_LOGGED_2                 slave_board_data.status.not_logged_bits.not_logged_2
+#define _NOT_LOGGED_3                 slave_board_data.status.not_logged_bits.not_logged_3
+#define _NOT_LOGGED_4                 slave_board_data.status.not_logged_bits.not_logged_4
+#define _NOT_LOGGED_5                 slave_board_data.status.not_logged_bits.not_logged_5
+#define _NOT_LOGGED_6                 slave_board_data.status.not_logged_bits.not_logged_6
+#define _NOT_LOGGED_7                 slave_board_data.status.not_logged_bits.not_logged_7
+#define _NOT_LOGGED_8                 slave_board_data.status.not_logged_bits.not_logged_8
+#define _NOT_LOGGED_9                 slave_board_data.status.not_logged_bits.not_logged_9
+#define _NOT_LOGGED_A                 slave_board_data.status.not_logged_bits.not_logged_A
+#define _NOT_LOGGED_B                 slave_board_data.status.not_logged_bits.not_logged_B
+#define _NOT_LOGGED_C                 slave_board_data.status.not_logged_bits.not_logged_C
+#define _NOT_LOGGED_D                 slave_board_data.status.not_logged_bits.not_logged_D
+#define _NOT_LOGGED_E                 slave_board_data.status.not_logged_bits.not_logged_E
+#define _NOT_LOGGED_F                 slave_board_data.status.not_logged_bits.not_logged_F
+
+
 
 #define _CONTROL_REGISTER             *(unsigned int*)&slave_board_data.status.control_notice_bits
 #define _FAULT_REGISTER               *(unsigned int*)&slave_board_data.status.fault_bits
 #define _WARNING_REGISTER             *(unsigned int*)&slave_board_data.status.warning_bits
-
+#define _NOT_LOGGED_REGISTER          *(unsigned int*)&slave_board_data.status.not_logged_bits
 
 // ------------------------- #defines to access the board log and configuration data -------------------------------- //
 /*

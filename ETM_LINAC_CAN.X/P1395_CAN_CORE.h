@@ -325,6 +325,7 @@ unsigned int ETMCanBufferNotEmpty(ETMCanMessageBuffer* buffer_ptr);
 #define ETM_CAN_MASTER_RX0_MASK                  0b0001111110000000  // This is used by master to receive LVL/STATUS/RTN
 #define ETM_CAN_MASTER_RX1_MASK                  0b0001000000000000  // This is used by master to receive LOG
 
+
 // SLAVE MASKS
 #define ETM_CAN_SLAVE_RX0_MASK                   0b0001111111111100  // This is used by slaves to receive LVL/SYNC
 #define ETM_CAN_SLAVE_RX1_MASK                   0b0001111111111100  // This is used by slaves to receive CMD msg
@@ -465,6 +466,8 @@ unsigned int ETMCanBufferNotEmpty(ETMCanMessageBuffer* buffer_ptr);
 
 
 //------------------ DATA LOGGING REGISTERS --------------------------//
+#define ETM_CAN_PULSE_LOG_REGISTER_BOARD_SPECIFIC_0                     0x010 // This gets or'd with board address
+
 
 // Default data logging registers
 #define ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_0                      0x040 // This gets or'd with board address
