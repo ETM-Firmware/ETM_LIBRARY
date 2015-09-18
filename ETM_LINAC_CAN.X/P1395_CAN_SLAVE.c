@@ -755,11 +755,6 @@ void ETMCanSlaveSendStatus(void) {
   message.word2 = _WARNING_REGISTER;
   message.word3 = 0;
 
-  message.word0 = 0x1020;
-  message.word1 = 0x0304;
-  message.word2 = 0xF0F0;
-  message.word3 = 0x0F0F;
-
   ETMCanTXMessage(&message, CXTX1CON_ptr);  
   etm_can_slave_debug_data.can_tx_1++;
   
