@@ -12,6 +12,7 @@
 #include "LTC265X.h"
 #include "MCP4822.h"
 #include "ETM_BUFFER_BYTE_64.h"
+#include "ETM_DIGITAL.h"
 
 
 #endif

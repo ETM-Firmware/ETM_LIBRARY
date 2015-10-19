@@ -38,7 +38,18 @@ unsigned int ETMCanSlaveGetPulseLevel(void);
 /*
   Returns the next pulse level (as set by the pulse sync board)
   Returns 0x0000 if the next pulse should be low energy
-  Returns 0xFFFF if the next pulse shhould be high energy
+  Returns 0xFFFF if the next pulse should be high energy
+*/
+
+#define ETMCanSlaveIsNextPulseLevelHigh ETMCanSlaveGetPulseLevel
+// Alternate name for ETMCanSlaveGetPulseLevel
+
+
+void ETMCanSlaveSetPulseLevelLow(void);
+/*
+  Sets the local pulse level to low.
+  This is used by the High Voltage Lambda to start charging to low energy until the
+  "Pulse Level Command" is received from the pulse sync board
 */
 
 
@@ -84,8 +95,14 @@ unsigned int ETMCanSlaveGetSyncMsgECBState(void);
 */
 
 
+void ETMCanSlaveIncrementInvalidIndex(void);
+/* 
+   Increments the Invalid Index Debugging counter
+*/
+
+
 // Only used by Pulse Sync Board
-void ETMCanSlavePulseSyncSendNextPulseLevel(unsigned int next_pulse_level, unsigned int next_pulse_count);
+void ETMCanSlavePulseSyncSendNextPulseLevel(unsigned int next_pulse_level, unsigned int next_pulse_count, unsigned int rep_rate_deci_herz);
 
 
 // Only used by Ion Pump Board
@@ -104,6 +121,11 @@ extern ETMCanBoardData           slave_board_data;            // This contains i
 #define _CONTROL_NOT_READY            slave_board_data.status.control_notice_bits.control_not_ready
 #define _CONTROL_NOT_CONFIGURED       slave_board_data.status.control_notice_bits.control_not_configured
 #define _CONTROL_SELF_CHECK_ERROR     slave_board_data.status.control_notice_bits.control_self_check_error
+#define _CONTROL_3                    slave_board_data.status.control_notice_bits.control_3_unused
+#define _CONTROL_4                    slave_board_data.status.control_notice_bits.control_4_unused
+#define _CONTROL_5                    slave_board_data.status.control_notice_bits.control_5_unused
+#define _CONTROL_6                    slave_board_data.status.control_notice_bits.control_6_unused
+#define _CONTROL_7                    slave_board_data.status.control_notice_bits.control_7_unused
 
 
 #define _NOTICE_0                     slave_board_data.status.control_notice_bits.notice_0

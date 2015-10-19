@@ -439,7 +439,7 @@ void ETMCanSlaveDoCan(void) {
 }
 
 
-void ETMCanSlavePulseSyncSendNextPulseLevel(unsigned int next_pulse_level, unsigned int next_pulse_count) {
+void ETMCanSlavePulseSyncSendNextPulseLevel(unsigned int next_pulse_level, unsigned int next_pulse_count, unsigned int rep_rate_deci_herz) {
   ETMCanMessage message;
   message.identifier = ETM_CAN_MSG_LVL_TX | (can_params.address << 2); 
   message.word0      = next_pulse_count;
@@ -448,6 +448,7 @@ void ETMCanSlavePulseSyncSendNextPulseLevel(unsigned int next_pulse_level, unsig
   } else {
     message.word1    = 0;
   }
+  message.word2 = rep_rate_deci_herz;
 
   ETMCanTXMessage(&message, CXTX2CON_ptr);
   etm_can_slave_debug_data.can_tx_2++;
@@ -1024,6 +1025,10 @@ unsigned int ETMCanSlaveGetPulseLevel(void) {
   return etm_can_slave_next_pulse_level;
 }
 
+void ETMCanSlaveSetPulseLevelLow(void) {
+  etm_can_slave_next_pulse_level = 0;
+}
+
 unsigned int ETMCanSlaveGetPulseCount(void) {
   return etm_can_slave_next_pulse_count;
 }
@@ -1119,7 +1124,6 @@ unsigned int ETMCanSlaveGetSyncMsgECBState(void) {
   return etm_can_slave_sync_message.sync_1_ecb_state_for_fault_logic;
 }
 
-
-
-
-
+void ETMCanSlaveIncrementInvalidIndex(void) {
+  etm_can_slave_debug_data.can_invalid_index++;
+}

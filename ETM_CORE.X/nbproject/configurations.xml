@@ -22,6 +22,7 @@
       <itemPath>LTC265X.c</itemPath>
       <itemPath>MCP4822.c</itemPath>
       <itemPath>ETM_BUFFER_BYTE_64.c</itemPath>
+      <itemPath>ETM_DIGITAL.c</itemPath>
     </logicalFolder>
     <logicalFolder name="ExternalFiles"
                    displayName="Important Files"
@@ -31,6 +32,7 @@
   </logicalFolder>
   <sourceRootList>
     <Elem>../Headers</Elem>
+    <Elem>.</Elem>
   </sourceRootList>
   <projectmakefile>Makefile</projectmakefile>
   <confs>
