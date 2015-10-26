@@ -20,6 +20,7 @@
   In order to add new processors you need to edit the .s file to include to ports that acutally present on your processor
   Currently the following processors are supported
   P30F6014A
+  P33FJ64GS606
  
 
   WARNING!!!!!!
