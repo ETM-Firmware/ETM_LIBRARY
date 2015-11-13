@@ -188,6 +188,8 @@ volatile unsigned int *CXTX2CON_ptr;
 void ETMCanSlaveInitialize(unsigned int requested_can_port, unsigned long fcy, unsigned int etm_can_address, unsigned long can_operation_led, unsigned int can_interrupt_priority) {
   unsigned long timer_period_value;
 
+  etm_can_slave_debug_data.reserved_1          = P1395_CAN_SLAVE_VERSION;
+
   if (can_interrupt_priority > 7) {
     can_interrupt_priority = 7;
   }
@@ -207,7 +209,7 @@ void ETMCanSlaveInitialize(unsigned int requested_can_port, unsigned long fcy, u
   etm_can_slave_debug_data.reset_count = etm_can_persistent_data.reset_count;
   etm_can_slave_debug_data.can_timeout = etm_can_persistent_data.can_timeout_count;
 
-  ETMCanSlaveClearDebug();
+  //ETMCanSlaveClearDebug();  DPARKER you can't call this because it will clear the reset count
   
   ETMCanBufferInitialize(&etm_can_slave_rx_message_buffer);
   ETMCanBufferInitialize(&etm_can_slave_tx_message_buffer);
@@ -418,7 +420,7 @@ void ETMCanSlaveDoCan(void) {
   ETMCanSlaveCheckForTimeOut();
   ETMCanSlaveSendUpdateIfNewNotReady();
   if (etm_can_slave_sync_message.sync_0_control_word.sync_F_clear_debug_data) {
-    //ETMCanSlaveClearDebug();  // DPARKER TESTING
+    ETMCanSlaveClearDebug();
   }
 
 
@@ -732,7 +734,7 @@ void ETMCanSlaveTimedTransmit(void) {
 			     etm_can_slave_debug_data.reset_count, 
 			     etm_can_slave_debug_data.RCON_value,
 			     etm_can_slave_debug_data.reserved_1, 
-			     etm_can_slave_debug_data.reserved_0);	  	  
+			     0x5050);//etm_can_slave_debug_data.reserved_0);	  	  
 
 	} else {
 	  ETMCanSlaveLogData(ETM_CAN_DATA_LOG_REGISTER_DEFAULT_SYSTEM_ERROR_1, 
@@ -750,11 +752,11 @@ void ETMCanSlaveTimedTransmit(void) {
 void ETMCanSlaveSendStatus(void) {
   ETMCanMessage message;
   message.identifier = ETM_CAN_MSG_STATUS_TX | (can_params.address << 2);
-
+  
   message.word0 = _CONTROL_REGISTER;
   message.word1 = _FAULT_REGISTER;
   message.word2 = _WARNING_REGISTER;
-  message.word3 = 0;
+  message.word3 = _NOT_LOGGED_REGISTER;
 
   ETMCanTXMessage(&message, CXTX1CON_ptr);  
   etm_can_slave_debug_data.can_tx_1++;
@@ -914,7 +916,7 @@ void ETMCanSlaveClearDebug(void) {
 
   etm_can_slave_debug_data.reset_count         = 0;
   etm_can_slave_debug_data.RCON_value          = 0;
-  etm_can_slave_debug_data.reserved_1          = 0;
+  etm_can_slave_debug_data.reserved_1          = P1395_CAN_SLAVE_VERSION;
   etm_can_slave_debug_data.reserved_0          = 0;
 
   etm_can_slave_debug_data.i2c_bus_error_count = 0;
