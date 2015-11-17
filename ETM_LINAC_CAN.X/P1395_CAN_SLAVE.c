@@ -148,6 +148,8 @@ volatile PersistentData etm_can_persistent_data __attribute__ ((persistent));
 typedef struct {
   unsigned int  address;
   unsigned long led;
+  unsigned long flash_led;
+  unsigned long not_ready_led;
 } TYPE_CAN_PARAMETERS;
 
 TYPE_CAN_PARAMETERS can_params;
@@ -184,8 +186,10 @@ volatile unsigned int *CXTX1CON_ptr;
 volatile unsigned int *CXTX2CON_ptr;
 
  
+void ETMCanSlaveInitialize(unsigned int requested_can_port, unsigned long fcy, unsigned int etm_can_address,
+			   unsigned long can_operation_led, unsigned int can_interrupt_priority,
+			   unsigned long flash_led, unsigned long not_ready_led) {
 
-void ETMCanSlaveInitialize(unsigned int requested_can_port, unsigned long fcy, unsigned int etm_can_address, unsigned long can_operation_led, unsigned int can_interrupt_priority) {
   unsigned long timer_period_value;
 
   etm_can_slave_debug_data.reserved_1          = P1395_CAN_SLAVE_VERSION;
@@ -196,6 +200,13 @@ void ETMCanSlaveInitialize(unsigned int requested_can_port, unsigned long fcy, u
   
   can_params.address = etm_can_address;
   can_params.led = can_operation_led;
+  can_params.flash_led = flash_led;
+  can_params.not_ready_led = not_ready_led;
+
+  ETMPinTrisOutput(can_params.led);
+  ETMPinTrisOutput(can_params.flash_led);
+  ETMPinTrisOutput(can_params.not_ready_led);
+
 
   etm_can_persistent_data.reset_count++;
   
@@ -396,21 +407,28 @@ void ETMCanSlaveInitialize(unsigned int requested_can_port, unsigned long fcy, u
     _C2IE = 1;
     _C1IE = 0;
   }
+  
+  if (!ETMAnalogCheckEEPromInitialized()) {
+    ETMAnalogLoadDefaultCalibration();
+    ETMEEPromWriteWord(0x0180, 65100);
+    ETMEEPromWriteWord(0x0181, 0x31);
+  }
 }
 
-
-void ETMCanSlaveLoadConfiguration(unsigned long agile_id, unsigned int agile_dash, unsigned int agile_rev, unsigned int firmware_agile_rev, unsigned int firmware_branch, unsigned int firmware_branch_rev, unsigned int serial_number) {
-
+void ETMCanSlaveLoadConfiguration(unsigned long agile_id, unsigned int agile_dash,
+				  unsigned int firmware_agile_rev, unsigned int firmware_branch, 
+				  unsigned int firmware_branch_rev) {
+  
   config_agile_number_low_word = (agile_id & 0xFFFF);
   agile_id >>= 16;
   config_agile_number_high_word = agile_id;
   config_agile_dash = agile_dash;
-  config_agile_rev_ascii = agile_rev;
+  config_agile_rev_ascii = ETMEEPromReadWord(0x0181);
 
   config_firmware_agile_rev = firmware_agile_rev;
   config_firmware_branch = firmware_branch;
   config_firmware_branch_rev = firmware_branch_rev;
-  config_serial_number = serial_number;
+  config_serial_number = ETMEEPromReadWord(0x0180);
 }
 
 
@@ -587,12 +605,25 @@ void ETMCanSlaveTimedTransmit(void) {
     // should be true once every 100mS
     _T4IF = 0;
     
+    // Set the Ready LED
+    if (_CONTROL_NOT_READY) {
+      ETMClearPin(can_params.not_ready_led); // This turns on the LED
+    } else {
+      ETMSetPin(can_params.not_ready_led);  // This turns off the LED
+    }
+
+    
     slave_data_log_index++;
     if (slave_data_log_index >= 10) {
       slave_data_log_index = 0;
-      
       slave_data_log_sub_index++;
       slave_data_log_sub_index &= 0b11;
+      // Flash the flashing LED
+      if (ETMReadPinLatch(can_params.flash_led)) {
+	ETMClearPin(can_params.flash_led);
+      } else {
+	ETMSetPin(can_params.flash_led);
+      }
     }
 
     ETMCanSlaveSendStatus(); // Send out the status every 100mS

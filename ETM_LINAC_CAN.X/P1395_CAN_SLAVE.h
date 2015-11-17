@@ -3,18 +3,22 @@
 
 #include "P1395_CAN_CORE.h"
 
-#define P1395_CAN_SLAVE_VERSION   0x0011
+#define P1395_CAN_SLAVE_VERSION   0x0013
 
 //------------ SLAVE PUBLIC FUNCTIONS AND VARIABLES ------------------- //
 
 // Public Functions
-void ETMCanSlaveInitialize(unsigned int requested_can_port, unsigned long fcy, unsigned int etm_can_address, unsigned long can_operation_led, unsigned int can_interrupt_priority);
+void ETMCanSlaveInitialize(unsigned int requested_can_port, unsigned long fcy, unsigned int etm_can_address,
+			   unsigned long can_operation_led, unsigned int can_interrupt_priority,
+			   unsigned long flash_led, unsigned long not_ready_led);
 /*
   This is called once when the processor starts up to initialize the can bus and all of the can variables
 */
 
 
-void ETMCanSlaveLoadConfiguration(unsigned long agile_id, unsigned int agile_dash, unsigned int agile_rev, unsigned int firmware_agile_rev, unsigned int firmware_branch, unsigned int firmware_branch_rev, unsigned int serial_number);
+void ETMCanSlaveLoadConfiguration(unsigned long agile_id, unsigned int agile_dash,
+				  unsigned int firmware_agile_rev, unsigned int firmware_branch, 
+				  unsigned int firmware_branch_rev);
 /*
   This is called once when the prcoessor starts up to load the board configuration into RAM so it can be sent over CAN to the ECB
 */
