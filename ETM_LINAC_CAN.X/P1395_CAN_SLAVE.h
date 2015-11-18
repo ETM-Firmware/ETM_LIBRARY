@@ -3,7 +3,7 @@
 
 #include "P1395_CAN_CORE.h"
 
-#define P1395_CAN_SLAVE_VERSION   0x0013
+#define P1395_CAN_SLAVE_VERSION   0x0014
 
 //------------ SLAVE PUBLIC FUNCTIONS AND VARIABLES ------------------- //
 

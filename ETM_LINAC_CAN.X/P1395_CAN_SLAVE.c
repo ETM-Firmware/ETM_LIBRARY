@@ -379,7 +379,7 @@ void ETMCanSlaveInitialize(unsigned int requested_can_port, unsigned long fcy, u
     // Load Filter registers
     C2RXF0SID = ETM_CAN_SLAVE_MSG_FILTER_RF0;
     C2RXF1SID = ETM_CAN_SLAVE_MSG_FILTER_RF1;
-    C2RXF2SID = ETM_CAN_SLAVE_MSG_FILTER_RF2; //(ETM_CAN_SLAVE_MSG_FILTER_RF2 | (can_params.address << 2));
+    C2RXF2SID = (ETM_CAN_SLAVE_MSG_FILTER_RF2 | (can_params.address << 2));
     //C2RXF3SID = ETM_CAN_MSG_FILTER_OFF;
     //C2RXF4SID = ETM_CAN_MSG_FILTER_OFF;
     //C2RXF5SID = ETM_CAN_MSG_FILTER_OFF;
