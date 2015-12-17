@@ -159,6 +159,8 @@ TYPE_CAN_PARAMETERS can_params;
 #define etm_can_slave_next_pulse_level      slave_board_data.local_data[0]
 #define etm_can_slave_next_pulse_count      slave_board_data.local_data[1]
 #define etm_can_slave_com_loss              slave_board_data.local_data[2]
+#define etm_can_slave_next_pulse_prf        slave_board_data.local_data[3]  // DPARKER provide functions for slave programs to read this data
+
 
 // Board Configuration data - 0x06
 #define config_agile_number_high_word      slave_board_data.config_data[0]
@@ -999,8 +1001,9 @@ void DoCanInterrupt(void) {
       // It is a Next Pulse Level Command
       etm_can_slave_debug_data.can_rx_0_filt_0++;
       ETMCanRXMessage(&can_message, CXRX0CON_ptr);
-      etm_can_slave_next_pulse_level = can_message.word1;
       etm_can_slave_next_pulse_count = can_message.word0;
+      etm_can_slave_next_pulse_level = can_message.word1;
+      etm_can_slave_next_pulse_prf = can_message.word2;
     } else {
       // The commmand was received by Filter 1
       // The command is a sync command.
@@ -1096,6 +1099,14 @@ unsigned int ETMCanSlaveGetSyncMsgPulseSyncDisableHV(void) {
 
 unsigned int ETMCanSlaveGetSyncMsgPulseSyncDisableXray(void) {
   if (etm_can_slave_sync_message.sync_0_control_word.sync_3_pulse_sync_disable_xray) {
+    return 0xFFFF;
+  } else {
+    return 0;
+  }
+}
+
+unsigned int ETMCanSlaveGetSyncMsgSystemHVDisable(void) {
+  if (etm_can_slave_sync_message.sync_0_control_word.sync_5_system_hv_disable) {
     return 0xFFFF;
   } else {
     return 0;

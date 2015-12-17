@@ -3,7 +3,7 @@
 
 #include "P1395_CAN_CORE.h"
 
-#define P1395_CAN_SLAVE_VERSION   0x0014
+#define P1395_CAN_SLAVE_VERSION   0x0017
 
 //------------ SLAVE PUBLIC FUNCTIONS AND VARIABLES ------------------- //
 
@@ -83,6 +83,7 @@ unsigned int ETMCanSlaveGetSyncMsgResetEnable(void);
 unsigned int ETMCanSlaveGetSyncMsgHighSpeedLogging(void);
 unsigned int ETMCanSlaveGetSyncMsgPulseSyncDisableHV(void);
 unsigned int ETMCanSlaveGetSyncMsgPulseSyncDisableXray(void);
+unsigned int ETMCanSlaveGetSyncMsgSystemHVDisable(void);
 unsigned int ETMCanSlaveGetSyncMsgCoolingFault(void);
 unsigned int ETMCanSlaveGetSyncMsgClearDebug(void);
 unsigned int ETMCanSlaveGetSyncMsgPulseSyncWarmupLED(void);
@@ -160,6 +161,24 @@ extern ETMCanBoardData           slave_board_data;            // This contains i
 #define _FAULT_E                      slave_board_data.status.fault_bits.fault_E
 #define _FAULT_F                      slave_board_data.status.fault_bits.fault_F
 
+#define _LOGGED_FAULT_0               _FAULT_0
+#define _LOGGED_FAULT_1               _FAULT_1
+#define _LOGGED_FAULT_2               _FAULT_2
+#define _LOGGED_FAULT_3               _FAULT_3
+#define _LOGGED_FAULT_4               _FAULT_4
+#define _LOGGED_FAULT_5               _FAULT_5
+#define _LOGGED_FAULT_6               _FAULT_6
+#define _LOGGED_FAULT_7               _FAULT_7
+#define _LOGGED_FAULT_8               _FAULT_8
+#define _LOGGED_FAULT_9               _FAULT_9
+#define _LOGGED_FAULT_A               _FAULT_A
+#define _LOGGED_FAULT_B               _FAULT_B
+#define _LOGGED_FAULT_C               _FAULT_C
+#define _LOGGED_FAULT_D               _FAULT_D
+#define _LOGGED_FAULT_E               _FAULT_E
+#define _LOGGED_FAULT_F               _FAULT_F
+
+
 #define _WARNING_0                    slave_board_data.status.warning_bits.warning_0
 #define _WARNING_1                    slave_board_data.status.warning_bits.warning_1
 #define _WARNING_2                    slave_board_data.status.warning_bits.warning_2
@@ -177,6 +196,24 @@ extern ETMCanBoardData           slave_board_data;            // This contains i
 #define _WARNING_E                    slave_board_data.status.warning_bits.warning_E
 #define _WARNING_F                    slave_board_data.status.warning_bits.warning_F
 
+#define _LOGGED_STATUS_0              _WARNING_0
+#define _LOGGED_STATUS_1              _WARNING_1
+#define _LOGGED_STATUS_2              _WARNING_2
+#define _LOGGED_STATUS_3              _WARNING_3
+#define _LOGGED_STATUS_4              _WARNING_4
+#define _LOGGED_STATUS_5              _WARNING_5
+#define _LOGGED_STATUS_6              _WARNING_6
+#define _LOGGED_STATUS_7              _WARNING_7
+#define _LOGGED_STATUS_8              _WARNING_8
+#define _LOGGED_STATUS_9              _WARNING_9
+#define _LOGGED_STATUS_A              _WARNING_A
+#define _LOGGED_STATUS_B              _WARNING_B
+#define _LOGGED_STATUS_C              _WARNING_C
+#define _LOGGED_STATUS_D              _WARNING_D
+#define _LOGGED_STATUS_E              _WARNING_E
+#define _LOGGED_STATUS_F              _WARNING_F
+
+
 #define _NOT_LOGGED_0                 slave_board_data.status.not_logged_bits.not_logged_0
 #define _NOT_LOGGED_1                 slave_board_data.status.not_logged_bits.not_logged_1
 #define _NOT_LOGGED_2                 slave_board_data.status.not_logged_bits.not_logged_2
@@ -193,6 +230,23 @@ extern ETMCanBoardData           slave_board_data;            // This contains i
 #define _NOT_LOGGED_D                 slave_board_data.status.not_logged_bits.not_logged_D
 #define _NOT_LOGGED_E                 slave_board_data.status.not_logged_bits.not_logged_E
 #define _NOT_LOGGED_F                 slave_board_data.status.not_logged_bits.not_logged_F
+
+#define _NOT_LOGGED_STATUS_0          _NOT_LOGGED_0
+#define _NOT_LOGGED_STATUS_1          _NOT_LOGGED_1
+#define _NOT_LOGGED_STATUS_2          _NOT_LOGGED_2
+#define _NOT_LOGGED_STATUS_3          _NOT_LOGGED_3
+#define _NOT_LOGGED_STATUS_4          _NOT_LOGGED_4
+#define _NOT_LOGGED_STATUS_5          _NOT_LOGGED_5
+#define _NOT_LOGGED_STATUS_6          _NOT_LOGGED_6
+#define _NOT_LOGGED_STATUS_7          _NOT_LOGGED_7
+#define _NOT_LOGGED_STATUS_8          _NOT_LOGGED_8
+#define _NOT_LOGGED_STATUS_9          _NOT_LOGGED_9
+#define _NOT_LOGGED_STATUS_A          _NOT_LOGGED_A
+#define _NOT_LOGGED_STATUS_B          _NOT_LOGGED_B
+#define _NOT_LOGGED_STATUS_C          _NOT_LOGGED_C
+#define _NOT_LOGGED_STATUS_D          _NOT_LOGGED_D
+#define _NOT_LOGGED_STATUS_E          _NOT_LOGGED_E
+#define _NOT_LOGGED_STATUS_F          _NOT_LOGGED_F
 
 
 

@@ -194,7 +194,7 @@ typedef struct {
   unsigned sync_2_pulse_sync_disable_hv:1;
   unsigned sync_3_pulse_sync_disable_xray:1;
   unsigned sync_4_cooling_fault:1;
-  unsigned sync_5_unused:1;
+  unsigned sync_5_system_hv_disable:1;
   unsigned sync_6_unused:1;
   unsigned sync_7_unused:1;
 
@@ -327,7 +327,7 @@ unsigned int ETMCanBufferNotEmpty(ETMCanMessageBuffer* buffer_ptr);
 
 
 // SLAVE MASKS
-#define ETM_CAN_SLAVE_RX0_MASK                   0b0001111111111100  // This is used by slaves to receive LVL/SYNC
+#define ETM_CAN_SLAVE_RX0_MASK                   0b0001111100000000  // This is used by slaves to receive LVL/SYNC
 #define ETM_CAN_SLAVE_RX1_MASK                   0b0001111111111100  // This is used by slaves to receive CMD msg
 
 
