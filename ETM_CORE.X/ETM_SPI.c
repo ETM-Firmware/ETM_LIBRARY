@@ -213,7 +213,7 @@ unsigned long SendAndReceiveSPI(unsigned int data_word, unsigned char spi_port) 
 #if defined(_SPI2IF)
   if (spi_port == ETM_SPI_PORT_2) {
     _SPI2IF = 0;
-    SPI1STAT &= SPI_RX_OVFLOW_CLR;
+    SPI2STAT &= SPI_RX_OVFLOW_CLR;
     if(SPI2STATbits.SPIRBF)
     {
       temp = SPI2BUF;

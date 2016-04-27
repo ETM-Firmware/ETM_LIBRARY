@@ -26,7 +26,7 @@
 .endif
 
 
-.ifdef __dsPIC33FJ64GS606__
+.ifdef __33FJ64GS606
 	.set __PORTB_ACTIVE, 1	
 	.set __PORTC_ACTIVE, 1
 	.set __PORTD_ACTIVE, 1
