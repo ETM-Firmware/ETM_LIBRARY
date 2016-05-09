@@ -1113,6 +1113,14 @@ unsigned int ETMCanSlaveGetSyncMsgSystemHVDisable(void) {
   }
 }
 
+unsigned int ETMCanSlaveGetSyncMsgGunDriverDisableHeater(void) {
+  if (etm_can_slave_sync_message.sync_0_control_word.sync_6_gun_driver_disable_heater) {
+    return 0xFFFF;
+  } else {
+    return 0;
+  }
+}
+
 unsigned int ETMCanSlaveGetSyncMsgCoolingFault(void) {
   if (etm_can_slave_sync_message.sync_0_control_word.sync_4_cooling_fault) {
     return 0xFFFF;

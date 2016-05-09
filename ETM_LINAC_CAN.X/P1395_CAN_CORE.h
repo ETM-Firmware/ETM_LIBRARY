@@ -195,7 +195,7 @@ typedef struct {
   unsigned sync_3_pulse_sync_disable_xray:1;
   unsigned sync_4_cooling_fault:1;
   unsigned sync_5_system_hv_disable:1;
-  unsigned sync_6_unused:1;
+  unsigned sync_6_gun_driver_disable_heater:1;
   unsigned sync_7_unused:1;
 
   unsigned sync_8_unused:1;

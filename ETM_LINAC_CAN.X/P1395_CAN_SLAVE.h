@@ -3,7 +3,7 @@
 
 #include "P1395_CAN_CORE.h"
 
-#define P1395_CAN_SLAVE_VERSION   0x0017
+#define P1395_CAN_SLAVE_VERSION   0x0018
 
 //------------ SLAVE PUBLIC FUNCTIONS AND VARIABLES ------------------- //
 
@@ -84,6 +84,7 @@ unsigned int ETMCanSlaveGetSyncMsgHighSpeedLogging(void);
 unsigned int ETMCanSlaveGetSyncMsgPulseSyncDisableHV(void);
 unsigned int ETMCanSlaveGetSyncMsgPulseSyncDisableXray(void);
 unsigned int ETMCanSlaveGetSyncMsgSystemHVDisable(void);
+unsigned int ETMCanSlaveGetSyncMsgGunDriverDisableHeater(void);
 unsigned int ETMCanSlaveGetSyncMsgCoolingFault(void);
 unsigned int ETMCanSlaveGetSyncMsgClearDebug(void);
 unsigned int ETMCanSlaveGetSyncMsgPulseSyncWarmupLED(void);
