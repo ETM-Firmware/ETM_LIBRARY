@@ -5,6 +5,11 @@
   
   Dan Parker
   2013_04_02
+
+
+  Portions written for devices with 2 i2c ports has been commented out- this functionality needs more work. 
+  Thea Henry 9/4/2015.
+
 */
 
 /*

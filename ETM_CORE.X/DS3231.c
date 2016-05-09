@@ -1,6 +1,6 @@
 // ETM MODULE:  REAL TIME CLOCK OVER I2C
-#include <p30f6014A.h>
-#include <libpic30.h>
+//#include <p30f6014A.h>
+//#include <libpic30.h>
 #include "DS3231.h"
 #include "ETM_I2C.h"
 

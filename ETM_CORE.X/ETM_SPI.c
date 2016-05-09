@@ -18,6 +18,7 @@
 
 #endif
 
+#define  SPI_RX_OVFLOW_CLR     0xffbf   /* Clear receive overflow bit.*/
 unsigned int etm_spi_loop_timeout; 
 
 unsigned int etm_spi1_error_count = 0;
@@ -157,12 +158,18 @@ unsigned long SendAndReceiveSPI(unsigned int data_word, unsigned char spi_port) 
   unsigned char spi_bus_status;
   unsigned long return_data;
   unsigned int loop_counter;
+  unsigned int temp;
   
   spi_bus_status = SPI_BUS_ACTIVE;
   
 #if defined(_SPI1IF)
   if (spi_port == ETM_SPI_PORT_1) {
     _SPI1IF = 0;
+    SPI1STAT &= SPI_RX_OVFLOW_CLR;
+    if(SPI1STATbits.SPIRBF)
+    {
+      temp = SPI1BUF;
+    }
     SPI1BUF = data_word;
     loop_counter = 0;
     while (spi_bus_status == SPI_BUS_ACTIVE) {
@@ -206,6 +213,11 @@ unsigned long SendAndReceiveSPI(unsigned int data_word, unsigned char spi_port) 
 #if defined(_SPI2IF)
   if (spi_port == ETM_SPI_PORT_2) {
     _SPI2IF = 0;
+    SPI2STAT &= SPI_RX_OVFLOW_CLR;
+    if(SPI2STATbits.SPIRBF)
+    {
+      temp = SPI2BUF;
+    }
     SPI2BUF = data_word;
     loop_counter = 0;
     while (spi_bus_status == SPI_BUS_ACTIVE) {

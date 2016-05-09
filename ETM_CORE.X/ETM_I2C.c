@@ -1,6 +1,12 @@
 #include <xc.h>
 #include "ETM_I2C.h"
 
+/***************************************************
+
+Portions written for devices with 2 i2c ports has been commented out- this functionality needs more work. 
+Thea Henry 9/4/2015.
+
+**************************************************/
 unsigned int etm_i2c1_error_count = 0;
 
 #if defined(_I2C1MD)  
@@ -43,7 +49,7 @@ void ConfigureI2C(unsigned char i2c_port, unsigned int configuration, unsigned l
     I2CBRG = baud_rate_register;
   } 
 #endif
-  
+ /************************** 
 #if defined(_I2C1MD)  
   if (i2c_port = 1) {
     I2C1CON = configuration;
@@ -57,6 +63,7 @@ void ConfigureI2C(unsigned char i2c_port, unsigned int configuration, unsigned l
     I2C2BRG = baud_rate_register;
   }
 #endif
+*********************************/
 }
 
 unsigned int WaitForI2CBusIdle(unsigned char i2c_port) {
@@ -80,7 +87,7 @@ unsigned int WaitForI2CBusIdle(unsigned char i2c_port) {
     }
   }
 #endif
-
+/************************************************
 #if defined(_I2C1MD)
   if (i2c_port == 1) {
     //Wait for bus Idle or Timeout
@@ -110,10 +117,10 @@ unsigned int WaitForI2CBusIdle(unsigned char i2c_port) {
     }
   }
 #endif
-  
+   ***********************************************/
   return i2c_result;
 }
-  
+ 
 
 
 
@@ -140,7 +147,7 @@ unsigned int GenerateI2CStart(unsigned char i2c_port) {
     }
   }
 #endif
-  
+  /**********************************
 #if defined(_I2C1MD)
   if (i2c_port == 1) {
     I2C1CONbits.SEN = 1;	                         //Generate Start COndition
@@ -172,7 +179,7 @@ unsigned int GenerateI2CStart(unsigned char i2c_port) {
     }
   }
 #endif
-  
+  ****************************************/
   return i2c_result;
 }
 
@@ -200,6 +207,7 @@ unsigned int GenerateI2CRestart(unsigned char i2c_port) {
   }
 #endif
 
+/*******************************************************
 #if defined(_I2C1MD)
   if (i2c_port == 1) {
     I2C1CONbits.RSEN = 1;		                 //Generate Re-Start COndition
@@ -231,7 +239,7 @@ unsigned int GenerateI2CRestart(unsigned char i2c_port) {
     }
   }
 #endif
-    
+    **************************************************/
   return i2c_result;
 }
 
@@ -268,6 +276,7 @@ unsigned int WriteByteI2C(unsigned char data, unsigned char i2c_port) {
   }
 #endif
 
+/************************************************************
 #if defined(_I2C1MD)
   if (i2c_port == 1) {
     I2C1TRN = (data);                                           //Load data to the transmit buffer
@@ -317,7 +326,7 @@ unsigned int WriteByteI2C(unsigned char data, unsigned char i2c_port) {
     }
   }
 #endif
-    
+    ***************************************************/
   return i2c_result;
 }
 
@@ -355,6 +364,7 @@ unsigned int ReadByteI2C(unsigned char i2c_port) {
   }
 #endif
 
+/***********************************************************
 #if defined(_I2C1MD)
   if (i2c_port == 1) {
     I2C1CONbits.RCEN = 1;			                 //Start Master receive
@@ -410,7 +420,7 @@ unsigned int ReadByteI2C(unsigned char i2c_port) {
     }
   }
 #endif
-    
+ **********************************************************/   
   return i2c_result;
 }
 
@@ -438,6 +448,7 @@ unsigned int GenerateI2CStop(unsigned char i2c_port) {
   }
 #endif
 
+/**************************************************************
 #if defined(_I2C1MD)
   if (i2c_port == 1) {
     I2C1CONbits.PEN = 1;		                 //Generate stop COndition
@@ -469,7 +480,7 @@ unsigned int GenerateI2CStop(unsigned char i2c_port) {
     }
   }
 #endif
-
+************************************************************/
   return i2c_result;
 }
 
@@ -494,6 +505,7 @@ unsigned int GenerateACK(unsigned char i2c_port) {
     }
 #endif
 
+/**********************************************************************
 #if defined(_I2C1MD)
     if ((i2c_port == 1) {
         I2C1CONbits.ACKDT = 0;   //ACK
@@ -523,7 +535,7 @@ unsigned int GenerateACK(unsigned char i2c_port) {
         }
     }
 #endif
-
+******************************************************************/
     return ret;
 }
 
@@ -548,6 +560,7 @@ unsigned int GenerateNACK(unsigned char i2c_port) {
     }
 #endif
 
+/********************************************************************
 #if defined(_I2C1MD)
     if ((i2c_port == 0) || (i2c_port == 1)) {
         I2C1CONbits.ACKDT = 1;   //NACK
@@ -573,10 +586,10 @@ unsigned int GenerateNACK(unsigned char i2c_port) {
             ret = 0x8000;
             etm_i2c1_error_count++;
             break;
-          }
+          }`
         }
     }
 #endif
-
+***********************************************************************/
     return ret;
 }

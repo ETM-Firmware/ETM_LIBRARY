@@ -25,6 +25,16 @@
 	.set __PORTG_ACTIVE, 1	
 .endif
 
+
+.ifdef __33FJ64GS606
+	.set __PORTB_ACTIVE, 1	
+	.set __PORTC_ACTIVE, 1
+	.set __PORTD_ACTIVE, 1
+	.set __PORTE_ACTIVE, 1
+	.set __PORTF_ACTIVE, 1
+	.set __PORTG_ACTIVE, 1	
+.endif
+
 	
         .global  _ETMSetPin
         .text
