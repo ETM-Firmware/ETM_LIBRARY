@@ -13,6 +13,7 @@
 #include "MCP4822.h"
 #include "ETM_BUFFER_BYTE_64.h"
 #include "ETM_DIGITAL.h"
+#include "ETM_CRC.h"
 
 
 #endif
