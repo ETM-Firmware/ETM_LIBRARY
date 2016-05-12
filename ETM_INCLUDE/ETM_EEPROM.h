@@ -2,10 +2,9 @@
 #define __ETM_EEPROM_H
 /*
   This is a common module that can be used with internal or external (Flash or FRAM based) eeprom
-
-  If you want to use the external EEPROM, you need to define
-  __USE_EXTERNAL_EEPROM  (I would do this in the project file)
 */
+
+#define ETM_EEPROM_VERSION 0x0002
 
 void ETMEEPromWriteWord(unsigned int register_location, unsigned int data);
 /*
@@ -38,6 +37,30 @@ void ETMEEPromReadPage(unsigned int page_number, unsigned int words_to_read, uns
   NOTE!!!!
   DO NOT READ MORE WORDS THAN YOU HAVE ALLOCATED TO YOUR DATA ARRAY
   IF YOU DO, THE VALUES IN RAM AT ADDRESSES PROCEEDING YOUR ARRAY WILL GET CLOBBERED 
+*/
+
+void ETMEEPromUseInternal(void);
+/*
+  Tells the module to direct all EEPROM read/writes to the internal EEPROM
+  If the device does not have an enternal EEPROM, the read commands will all return zero
+  
+  The ETMEEPromUseInternal and ETMEEPromUseExternal can be used to switch between the EEProms within the application
+*/
+
+void ETMEEPromUseExternal(void);
+/*
+  Tells the module to direct all EEPROM read/writes to the external EEPROM
+  In order to use the external EEPROM, ETMEEPromConfigureExternalDevice must be called
+  If the devide does not have an I2C port or an external EEPROM, weird things may happen
+  
+  The ETMEEPromUseInternal and ETMEEPromUseExternal can be used to switch between the EEProms within the application
+*/
+
+
+unsigned int ETMEEPromInternalSelected(void);
+/*
+  Returns 1 if the internal EEPROM is currently selected for read/write operations
+  Reutrns 0 if the external EEPROM is currently selected for read/write operations
 */
 
 

@@ -23,6 +23,8 @@
       <itemPath>MCP4822.c</itemPath>
       <itemPath>ETM_BUFFER_BYTE_64.c</itemPath>
       <itemPath>ETM_DIGITAL.c</itemPath>
+      <itemPath>ETM_CRC.c</itemPath>
+      <itemPath>ETM_EEPROM.c</itemPath>
     </logicalFolder>
     <logicalFolder name="ExternalFiles"
                    displayName="Important Files"
@@ -44,7 +46,7 @@
         <targetPluginBoard></targetPluginBoard>
         <platformTool>ICD3PlatformTool</platformTool>
         <languageToolchain>XC16</languageToolchain>
-        <languageToolchainVersion>1.24</languageToolchainVersion>
+        <languageToolchainVersion>1.23</languageToolchainVersion>
         <platform>3</platform>
       </toolsSet>
       <compileType>
