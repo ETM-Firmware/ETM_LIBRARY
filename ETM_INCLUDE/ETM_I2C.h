@@ -21,6 +21,9 @@
 #ifndef __ETM_I2C_H
 #define __ETM_I2C_H
 
+#define ETM_I2C_VERSION          03
+
+
 #define I2CCON_DEFAULT_SETUP_30F6014A         0b1011000000100000
 #define I2CCON_DEFAULT_SETUP_PIC30F           0b1011000000100000
 
@@ -107,6 +110,23 @@ unsigned int GenerateNACK(unsigned char i2c_port);
   The result will be 0x8000 if there is an I2C bus fault
 */
 #define GenerateI2CNack GenerateNACK
+
+void ClearI2CBus(unsigned char i2c_port);
+/*
+  This function is used to clear an I2C bus that is being help by a slave after reset.
+  It sends manually clocks out an 
+  I2CStart
+  9 Clocks
+  I2CStart
+  I2CStop
+
+  This will clear a bus that is being help by an external slave device
+
+  It will restore the I2CCON state after clearing the bus.
+
+  This function is called as part of ConfigureI2C, but can also be called independently
+*/
+
 
 
 #define I2C_PORT                 0

@@ -1,5 +1,7 @@
 #include <xc.h>
+#include <libpic30.h>
 #include "ETM_I2C.h"
+
 
 /***************************************************
 
@@ -15,11 +17,26 @@ unsigned int etm_i2c2_error_count = 0;
 
 unsigned int etm_i2c_loop_timeout;
 
+#ifdef __dsPIC30F6014A__
+   #define I2C_1_CLK_TRIS  _TRISG2
+   #define I2C_1_CLK_PIN   _LATG2
+   #define I2C_1_DATA_TRIS _TRISG3
+   #define I2C_1_DATA_PIN  _LATG3
+#endif 
+
+#ifdef __dsPIC30F6010A__
+   #define I2C_1_CLK_TRIS  _TRISG2
+   #define I2C_1_CLK_PIN   _LATG2
+   #define I2C_1_DATA_TRIS _TRISG3
+   #define I2C_1_DATA_PIN  _LATG3
+#endif
+
 
 void ConfigureI2C(unsigned char i2c_port, unsigned int configuration, unsigned long baud_rate, unsigned long fcy_clk, unsigned long pulse_gobbler_delay_fcy) {
   unsigned long baud_rate_register;
 
-  
+  ClearI2CBus(i2c_port);
+
   baud_rate_register = fcy_clk/baud_rate;
   etm_i2c_loop_timeout = baud_rate_register * 16;
   /*
@@ -27,7 +44,6 @@ void ConfigureI2C(unsigned char i2c_port, unsigned int configuration, unsigned l
     That means our timeout is at least 10*16 I2C Clocks = 160 I2C Clocks.
   */
   // DPARKER this is probably too long
-
 
   baud_rate_register -= fcy_clk/PULSE_GOBBLER_DELAY_HZ;
   baud_rate_register -= 1;
@@ -64,6 +80,57 @@ void ConfigureI2C(unsigned char i2c_port, unsigned int configuration, unsigned l
   }
 #endif
 *********************************/
+}
+
+#define I2C_CLOCK_HALF_PERIOD  50
+
+void ClearI2CBus(unsigned char i2c_port) {
+  unsigned int i2ccon_save;
+  unsigned char n;
+#if defined(_I2CMD)
+  if ((i2c_port == 0) || (i2c_port == 1)) {
+    i2ccon_save = I2CCON;
+    I2C_1_CLK_TRIS = 1;
+    I2C_1_DATA_TRIS = 1;
+    I2C_1_DATA_PIN = 0;
+    I2C_1_CLK_PIN  = 0;
+    I2CCON = 0;
+    
+    // Send a start condition
+    I2C_1_DATA_TRIS = 1; // This should allow the Data line to be pulled high (assuming a device is not holding it low)
+    I2C_1_CLK_TRIS  = 1; // Allow the clock pin to be pulled high by external resistor
+    __delay32(I2C_CLOCK_HALF_PERIOD*4);
+    I2C_1_DATA_TRIS = 0; // Actively pull the data pin low
+    __delay32(I2C_CLOCK_HALF_PERIOD*4);
+    I2C_1_DATA_TRIS = 1; // Release the data pin
+    
+    // Send out 9 Clock Pulses
+    for (n=0; n<9; n++) {
+      I2C_1_CLK_TRIS = 0; // Actively pull the clock pin low
+      __delay32(I2C_CLOCK_HALF_PERIOD);
+      I2C_1_CLK_TRIS = 1; // Allow the clock pin to be pulled high by external resistor
+      __delay32(I2C_CLOCK_HALF_PERIOD);
+    }
+    
+    // Send a start condition
+    I2C_1_DATA_TRIS = 1; // This should allow the Data line to be pulled high (assuming a device is not holding it low)
+    I2C_1_CLK_TRIS  = 1; // Allow the clock pin to be pulled high by external resistor
+    __delay32(I2C_CLOCK_HALF_PERIOD*4);
+    I2C_1_DATA_TRIS = 0; // Actively pull the data pin low
+    __delay32(I2C_CLOCK_HALF_PERIOD*4);
+    
+    // Send a stop condition
+    I2C_1_DATA_TRIS = 0; // Actively pull the data line low
+    I2C_1_CLK_TRIS  = 1; // Allow the clock pin to be pulled high by external resistor
+    __delay32(I2C_CLOCK_HALF_PERIOD*4);
+    I2C_1_DATA_TRIS = 1; // Allow the Data line to be pulled high
+    __delay32(I2C_CLOCK_HALF_PERIOD*4);
+    
+    I2C_1_CLK_TRIS = 1;
+    I2C_1_DATA_TRIS = 1;
+    I2CCON = i2ccon_save;
+  }
+#endif  
 }
 
 unsigned int WaitForI2CBusIdle(unsigned char i2c_port) {

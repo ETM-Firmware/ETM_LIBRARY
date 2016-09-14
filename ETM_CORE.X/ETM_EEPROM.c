@@ -3,6 +3,8 @@
 #include "ETM_EEPROM.h"
 #include "ETM_I2C.h"
 
+#define ETM_EEPROM_TEST_REGISTER_LOCATION    0x18F
+
 void ETMEEPromWriteWordInternal(unsigned int register_location, unsigned int data);
 unsigned int ETMEEPromReadWordInternal(unsigned int register_location);
 void ETMEEPromWritePageInternal(unsigned int page_number, unsigned int words_to_write, unsigned int *data);
@@ -34,6 +36,33 @@ void ETMEEPromConfigureExternalDevice(unsigned int size_bytes, unsigned long fcy
   external_eeprom.i2c_port = i2c_port;
   external_eeprom.size_bytes = size_bytes;
   ConfigureI2C(external_eeprom.i2c_port, I2CCON_DEFAULT_SETUP_PIC30F, i2c_baud_rate, fcy_clk, 0);
+}
+
+unsigned int ETMEEPromCheckOK(void) {
+  unsigned int temp1;
+  unsigned int temp2;
+  unsigned char trys;
+
+  for(trys=0; trys<5; trys++) {
+    if (ETMEEPromInternalSelected()) {
+      temp1  = ETMEEPromReadWordInternal(ETM_EEPROM_TEST_REGISTER_LOCATION);
+      temp1 += 0x137C;
+      ETMEEPromWriteWordInternal(ETM_EEPROM_TEST_REGISTER_LOCATION, temp1);
+      temp2  = ETMEEPromReadWordInternal(ETM_EEPROM_TEST_REGISTER_LOCATION);
+      if (temp1 == temp2) {
+	return 1;
+      }
+    } else {
+      temp1  = ETMEEPromReadWordExternal(ETM_EEPROM_TEST_REGISTER_LOCATION);
+      temp1 += 0x137C;
+      ETMEEPromWriteWordExternal(ETM_EEPROM_TEST_REGISTER_LOCATION, temp1);
+      temp2  = ETMEEPromReadWordExternal(ETM_EEPROM_TEST_REGISTER_LOCATION);
+      if (temp1 == temp2) {
+	return 1;
+      }
+    }
+  }
+  return 0;
 }
 
 void ETMEEPromWriteWord(unsigned int register_location, unsigned int data) {

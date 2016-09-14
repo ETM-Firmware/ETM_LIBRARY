@@ -15,5 +15,6 @@
 #include "ETM_DIGITAL.h"
 #include "ETM_CRC.h"
 
+#define ETM_LIBRARY_VERSION        03
 
 #endif

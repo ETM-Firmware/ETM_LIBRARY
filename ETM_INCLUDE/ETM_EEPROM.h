@@ -4,7 +4,7 @@
   This is a common module that can be used with internal or external (Flash or FRAM based) eeprom
 */
 
-#define ETM_EEPROM_VERSION 0x0002
+#define ETM_EEPROM_VERSION 03
 
 void ETMEEPromWriteWord(unsigned int register_location, unsigned int data);
 /*
@@ -70,6 +70,13 @@ void ETMEEPromConfigureExternalDevice(unsigned int size_bytes, unsigned long fcy
   This configures the EEPROM and initializes the eeprom
   It should only be called if using an external EEPROM
   If the internal EEPROM is used this will do nothing
+*/
+
+unsigned int ETMEEPromCheckOK(void);
+/*
+  This is used to check that EEPROM Read and Writes are working
+  Will return 1 if the EEPROM Read/Write test is successful
+  Will return 0 if it is not successful
 */
 
 

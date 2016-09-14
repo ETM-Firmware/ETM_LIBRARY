@@ -1,7 +1,7 @@
 #ifndef __ETM_CRC_H
 #define __ETM_CRC_H
 
-#define ETM_CRC_VERSION  0x0001
+#define ETM_CRC_VERSION  02
 
 unsigned int ETMCRC16(const void *c_ptr, unsigned int len);
 /*
@@ -12,7 +12,7 @@ unsigned int ETMCRC16(const void *c_ptr, unsigned int len);
 unsigned int ETMCRCModbus(const void *c_ptr, unsigned int len);
 /*
   This calculates the modbus CRC
-  This uses a polynomial of 0xA001 and a seed value of 0x0000
+  This uses a polynomial of 0xA001 and a seed value of 0xFFFF
 */
 
 #endif

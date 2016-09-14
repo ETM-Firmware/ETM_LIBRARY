@@ -275,3 +275,9 @@ void ETMAnalogLoadDefaultCalibration(void) {
   ETMEEPromWritePage(EEPROM_CALIBRATION_PAGE_GENERAL_2, 16, (unsigned int*)&default_zero_data);
   ETMEEPromWriteWord(0x01FF, 0xAAAA);
 }
+void ETMAnalogClearFaultCounters(AnalogInput* ptr_analog_input) {
+  ptr_analog_input->absolute_under_counter = 0;
+  ptr_analog_input->absolute_over_counter = 0;
+  ptr_analog_input->over_trip_counter = 0;
+  ptr_analog_input->under_trip_counter = 0;
+}
