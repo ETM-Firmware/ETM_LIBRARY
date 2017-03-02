@@ -137,7 +137,7 @@ _ETMCanRXMessage_RX_EMPTY:
 	MOV		W2, [W0++]
 	MOV		W2, [W0++]
 	MOV		W2, [W0++]
-	BRA		_ETMCanReadMessageFromBuffer_DONE	
+	BRA		_ETMCanReadMessage_DONE	
 
 _ETMCanRXMessage_DONE:
 	

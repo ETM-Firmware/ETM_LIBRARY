@@ -6,6 +6,15 @@
 
 unsigned char slave_address = RTC_SLAVE_ADDRESS;
 
+
+#define YEAR_MULT  35942400
+#define MONTH_MULT  2764800
+#define DAY_MULT      86400
+#define HOUR_MULT      3600
+#define MIN_MULT         60
+
+
+
 unsigned char ConvertToBCD(unsigned char decimal, unsigned char hour);
 unsigned char ConvertFromBCD(unsigned char decimal, unsigned char hour);
 
@@ -204,42 +213,7 @@ unsigned char ReadDateAndTime(RTC_DS3231* ptr_REAL_TIME_CLOCK, RTC_TIME* ptr_TIM
     else
         return 1;
 }
-/*
-unsigned int ReadRTCTemperature(REAL_TIME_CLOCK* ptr_REAL_TIME_CLOCK) {
-    if (WaitForI2CBusIdle(ptr_REAL_TIME_CLOCK->I2Cport) == 0){
-        if (GenerateI2CStart(ptr_REAL_TIME_CLOCK->I2Cport) == 0){
-            if (WriteByteI2C(slave_address, ptr_REAL_TIME_CLOCK->I2Cport) == 0){
-                if (WriteByteI2C(TEMPERATURE_ADDRESS_MSB, ptr_REAL_TIME_CLOCK->I2Cport) == 0) {
-                    if (GenerateI2CRestart(ptr_REAL_TIME_CLOCK->I2Cport) == 0) {
-                        if (WriteByteI2C(slave_address + 1, ptr_REAL_TIME_CLOCK->I2Cport) == 0){
-                            ptr_REAL_TIME_CLOCK->temperature = ReadByteI2C(ptr_REAL_TIME_CLOCK->I2Cport);
-                            if (GenerateNACK(ptr_REAL_TIME_CLOCK->I2Cport) != 0)
-                                return 8;
-                            if (GenerateI2CStop(ptr_REAL_TIME_CLOCK->I2Cport) == 0) {
-                                return 0;
-                            }
-                            else
-                                return 9;
-                        }
-                        else
-                            return 6;
-                    }
-                    else
-                        return 5;
-                }
-                else
-                    return 4;
-            }
-            else
-                return 3;
-        }
-        else
-            return 2;
-    }
-    else
-        return 1;
-}
-*/
+
 unsigned char ConvertFromBCD(unsigned char bcd, unsigned char hour){
     unsigned char twenty = 0;
     unsigned char ten = 0;
@@ -286,13 +260,13 @@ unsigned char ConvertToBCD(unsigned char decimal, unsigned char hour){
 }
 
 unsigned long RTCDateToSeconds(RTC_TIME* ptr_time) {
+  unsigned long time;
   unsigned long temp;
-  unsigned int  temp_int;
   
   /*
     Could also be expressed as 
-    Years * 31622400 +
-    month *  2678400 +
+    Years * 35942400 +
+    month *  2764800 +
     Date  *    86400 +
     hour  *     3600 +
     minute*       60 +
@@ -300,102 +274,63 @@ unsigned long RTCDateToSeconds(RTC_TIME* ptr_time) {
    */
 
 
+  // Year Calc
+  temp = ptr_time->year;
+  temp *= YEAR_MULT;
+  time = temp;
 
-  temp      = ptr_time->year;
-  temp     *= 366;
-  
-  temp_int  = ptr_time->month;
-  temp_int *= 31;
-  temp_int += ptr_time->date;
-  
-  temp     += temp_int;  // temp is now our sudo days
+  // Month Calc
+  temp = ptr_time->month;
+  temp *= MONTH_MULT;
+  time += temp;
 
-  temp     *= 24;
-  temp     += ptr_time->hour;  // temp is now our sudo hours
-  
-  temp     *= 60;
-  temp     += ptr_time->minute; // temp is now our sudo minute
-  
-  temp     *= 60;
-  temp     += ptr_time->second; // temp is nouw our sudo seconds
+  // Day Calc
+  temp = ptr_time->date;
+  temp *= DAY_MULT;
+  time += temp;
 
-  return temp;
+  // Hour Calc
+  temp = ptr_time->hour;
+  temp *= HOUR_MULT;
+  time += temp;
+
+  // Minute Calc
+  temp = ptr_time->minute;
+  temp *= MIN_MULT;
+  time += temp;
+
+  // Seconds Calc
+  time += ptr_time->second;
+
+  return time;
 }
 
 void RTCSecondsToDate(unsigned long sudo_seconds, RTC_TIME* ptr_time) {
   unsigned long int_part;
 
   // year calculation
-  int_part = sudo_seconds / 31622400;
-  sudo_seconds = sudo_seconds % 31622400;
+  int_part = sudo_seconds / YEAR_MULT;
+  sudo_seconds = sudo_seconds % YEAR_MULT;
   ptr_time->year = int_part;
 
   //month_calculation
-  int_part = sudo_seconds / 2678400;
-  sudo_seconds = sudo_seconds % 2678400;
+  int_part = sudo_seconds / MONTH_MULT;
+  sudo_seconds = sudo_seconds % MONTH_MULT;
   ptr_time->month = int_part;
 
   //date_calculation
-  int_part = sudo_seconds / 86400;
-  sudo_seconds = sudo_seconds % 86400;
+  int_part = sudo_seconds / DAY_MULT;
+  sudo_seconds = sudo_seconds % DAY_MULT;
   ptr_time->date = int_part;
 
   //hour_calculation
-  int_part = sudo_seconds / 3600;
-  sudo_seconds = sudo_seconds % 3600;
+  int_part = sudo_seconds / HOUR_MULT;
+  sudo_seconds = sudo_seconds % HOUR_MULT;
   ptr_time->hour = int_part;
 
   //minute_calculation
-  int_part = sudo_seconds / 60;
-  sudo_seconds = sudo_seconds % 60;
+  int_part = sudo_seconds / MIN_MULT;
+  sudo_seconds = sudo_seconds % MIN_MULT;
   ptr_time->minute = int_part;
   ptr_time->second = sudo_seconds;
-
 }
-
-
-
-/*
-unsigned int ReadRTCTimeDifference(RTC_TIME* ptr_rtc_old, RTC_TIME* ptr_rtc_new) {
-    unsigned int seconds;
-
-    if (ptr_rtc_old->year == ptr_rtc_new->year) {
-        if (ptr_rtc_old->month == ptr_rtc_new->month) {
-            if (ptr_rtc_old->date == ptr_rtc_new->date) {
-                if (ptr_rtc_old->day == ptr_rtc_new->day) {
-                    seconds = (ptr_rtc_new->hour - ptr_rtc_old->hour);
-                    if (seconds > 17) //max integer 0xFFFF value
-                        return 0xFD20;
-                    else
-                        seconds *= 3600;
-
-                    if (ptr_rtc_old->minute > ptr_rtc_new->minute)
-                        seconds -= (ptr_rtc_old->minute - ptr_rtc_new->minute) * 60;
-                    else
-                        seconds += (ptr_rtc_new->minute - ptr_rtc_old->minute) * 60;
-
-                    if (ptr_rtc_old->second > ptr_rtc_new->second)
-                        seconds -= (ptr_rtc_old->second - ptr_rtc_new->second);
-                    else
-                        seconds += (ptr_rtc_new->second - ptr_rtc_old->second);
-                           
-                    return seconds;
-                }
-                else
-                    seconds = 0xFD20;
-            }
-            else
-                seconds = 0xFD20;
-        }
-        else
-            seconds = 0xFD20;
-    }
-    else
-        seconds = 0xFD20;
-
-    if (seconds > 0xFD20)
-        seconds = 0xFFFF;
-
-    return seconds;
-}
-*/

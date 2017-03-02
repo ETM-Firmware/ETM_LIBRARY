@@ -41,6 +41,10 @@ void ConfigureI2C(unsigned char i2c_port, unsigned int configuration, unsigned l
   It also calculates the baud rate register based on the selected baud rate and the system clock.
 
   NOTE - pulse_gobbler_delay_fcy is no longer unused,  set it to zero (or any other value), it has not been removed to preserve compatability
+
+  TO try and be standard, Modules that use the I2C Port should be called like this
+  SetuptDeviceXXX(&ptr_device, unsigned char i2c_port, unsigned char device_address, unsigned char device_config, unsigned long FCY_CLK, unsigned long baud_rate)
+
 */
 
 

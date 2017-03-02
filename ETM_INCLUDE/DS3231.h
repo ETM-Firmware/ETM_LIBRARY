@@ -38,6 +38,8 @@
 #define __DS3231_H
 #include "ETM_I2C.h"
 
+#define DS3231_VERSION 02
+
 // 
 typedef struct {
   unsigned char year;              //00-99
