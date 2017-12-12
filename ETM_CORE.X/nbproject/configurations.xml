@@ -13,7 +13,6 @@
                    displayName="Source Files"
                    projectFiles="true">
       <itemPath>DS3231.c</itemPath>
-      <itemPath>ETM_ANALOG.c</itemPath>
       <itemPath>ETM_I2C.c</itemPath>
       <itemPath>ETM_IO_PORTS.s</itemPath>
       <itemPath>ETM_RC_FILTER.s</itemPath>
@@ -24,7 +23,6 @@
       <itemPath>ETM_BUFFER_BYTE_64.c</itemPath>
       <itemPath>ETM_DIGITAL.c</itemPath>
       <itemPath>ETM_CRC.c</itemPath>
-      <itemPath>ETM_EEPROM.c</itemPath>
     </logicalFolder>
     <logicalFolder name="ExternalFiles"
                    displayName="Important Files"
@@ -61,6 +59,8 @@
           <parseOnProdLoad>false</parseOnProdLoad>
           <alternateLoadableFile></alternateLoadableFile>
         </loading>
+        <subordinates>
+        </subordinates>
       </compileType>
       <makeCustomizationType>
         <makeCustomizationPreStepEnabled>false</makeCustomizationPreStepEnabled>

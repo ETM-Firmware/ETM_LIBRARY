@@ -14,7 +14,9 @@
 #include "ETM_BUFFER_BYTE_64.h"
 #include "ETM_DIGITAL.h"
 #include "ETM_CRC.h"
+#include "ETM_MATH.h"
+#include "MCP4725.h"
 
-#define ETM_LIBRARY_VERSION        03
+#define ETM_LIBRARY_VERSION        04
 
 #endif
