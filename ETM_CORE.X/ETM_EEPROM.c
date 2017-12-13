@@ -2,115 +2,10 @@
 #include <libpic30.h>
 #include "ETM_EEPROM.h"
 #include "ETM_I2C.h"
+#include "ETM_SPI.h"
+#include "ETM_IO_PORTS.h"
+#include "ETM_CRC.h"
 
-#define ETM_EEPROM_TEST_REGISTER_LOCATION    0x18F
-
-void ETMEEPromWriteWordInternal(unsigned int register_location, unsigned int data);
-unsigned int ETMEEPromReadWordInternal(unsigned int register_location);
-void ETMEEPromWritePageInternal(unsigned int page_number, unsigned int words_to_write, unsigned int *data);
-void ETMEEPromReadPageInternal(unsigned int page_number, unsigned int words_to_read, unsigned int *data);
-
-void ETMEEPromWriteWordExternal(unsigned int register_location, unsigned int data);
-unsigned int ETMEEPromReadWordExternal(unsigned int register_location);
-void ETMEEPromWritePageExternal(unsigned int page_number, unsigned int words_to_write, unsigned int *data);
-void ETMEEPromReadPageExternal(unsigned int page_number, unsigned int words_to_read, unsigned int *data);
-
-typedef struct {
-  unsigned char address;
-  unsigned char i2c_port;
-  unsigned int  size_bytes;
-} ETMEEProm;
-
-ETMEEProm external_eeprom;
-
-
-
-
-
-
-// --------------- EEPROM GLUE FUNCTIONS ---------------------
-unsigned int etm_eeprom_internal_selected = 1;
-
-void ETMEEPromConfigureExternalDevice(unsigned int size_bytes, unsigned long fcy_clk, unsigned long i2c_baud_rate, unsigned char i2c_address, unsigned char i2c_port) {
-  external_eeprom.address = i2c_address;
-  external_eeprom.i2c_port = i2c_port;
-  external_eeprom.size_bytes = size_bytes;
-  ConfigureI2C(external_eeprom.i2c_port, I2CCON_DEFAULT_SETUP_PIC30F, i2c_baud_rate, fcy_clk, 0);
-}
-
-unsigned int ETMEEPromCheckOK(void) {
-  unsigned int temp1;
-  unsigned int temp2;
-  unsigned char trys;
-
-  for(trys=0; trys<5; trys++) {
-    if (ETMEEPromInternalSelected()) {
-      temp1  = ETMEEPromReadWordInternal(ETM_EEPROM_TEST_REGISTER_LOCATION);
-      temp1 += 0x137C;
-      ETMEEPromWriteWordInternal(ETM_EEPROM_TEST_REGISTER_LOCATION, temp1);
-      temp2  = ETMEEPromReadWordInternal(ETM_EEPROM_TEST_REGISTER_LOCATION);
-      if (temp1 == temp2) {
-	return 1;
-      }
-    } else {
-      temp1  = ETMEEPromReadWordExternal(ETM_EEPROM_TEST_REGISTER_LOCATION);
-      temp1 += 0x137C;
-      ETMEEPromWriteWordExternal(ETM_EEPROM_TEST_REGISTER_LOCATION, temp1);
-      temp2  = ETMEEPromReadWordExternal(ETM_EEPROM_TEST_REGISTER_LOCATION);
-      if (temp1 == temp2) {
-	return 1;
-      }
-    }
-  }
-  return 0;
-}
-
-void ETMEEPromWriteWord(unsigned int register_location, unsigned int data) {
-  if (ETMEEPromInternalSelected()) {
-    ETMEEPromWriteWordInternal(register_location, data);
-  } else {
-    ETMEEPromWriteWordExternal(register_location, data);
-  }
-}
-
-unsigned int ETMEEPromReadWord(unsigned int register_location) {
-  if (ETMEEPromInternalSelected()) {
-    return ETMEEPromReadWordInternal(register_location);
-  } else {
-    return ETMEEPromReadWordExternal(register_location);
-  }
-}
-
-void ETMEEPromWritePage(unsigned int page_number, unsigned int words_to_write, unsigned int *data) {
-  if (ETMEEPromInternalSelected()) {
-    ETMEEPromWritePageInternal(page_number, words_to_write, &data[0]);
-  } else {
-    ETMEEPromWritePageExternal(page_number, words_to_write, &data[0]);
-  }
-}
-
-void ETMEEPromReadPage(unsigned int page_number, unsigned int words_to_read, unsigned int *data) {
-  if (ETMEEPromInternalSelected()) {
-    ETMEEPromReadPageInternal(page_number, words_to_read, &data[0]);
-  } else {
-    ETMEEPromReadPageExternal(page_number, words_to_read, &data[0]);
-  }
-}
-
-void ETMEEPromUseInternal(void) {
-  etm_eeprom_internal_selected = 1;
-}
-
-void ETMEEPromUseExternal(void) {
-  etm_eeprom_internal_selected = 0;
-}
-
-unsigned int ETMEEPromInternalSelected(void) {
-  return etm_eeprom_internal_selected;
-}
-
-
-// ----------------------- INTERNAL EEPROM FUNCTIONS ----------------------------------
 
 #if defined(__dsPIC30F6014A__)
 #define INTERNAL_EEPROM_SIZE_WORDS  2048
@@ -125,284 +20,444 @@ unsigned int ETMEEPromInternalSelected(void) {
 #endif
 
 
-#if INTERNAL_EEPROM_SIZE_WORDS == 0
-void ETMEEPromWriteWordInternal(unsigned int register_location, unsigned int data) {}
+// DPARKER need to extended for SPI EEPROM
+typedef struct {
+  unsigned char address;
+  unsigned char i2c_port;
+  unsigned int  size_bytes;
+} TYPE_ETMEEPROM_I2C;
 
-unsigned int ETMEEPromReadWordInternal(unsigned int register_location) {
+typedef struct {
+  unsigned int  pin_chip_select_not;
+  unsigned int  pin_hold;
+  unsigned int  pin_write_protect;
+  unsigned char spi_port;
+  unsigned int  size_bytes;
+} TYPE_ETMEEPROM_SPI;
+
+static TYPE_ETMEEPROM_I2C external_eeprom_I2C;
+static TYPE_ETMEEPROM_SPI external_eeprom_SPI;
+
+static unsigned int etm_eeprom_selected_device;
+static unsigned long long alternate_page_data;
+
+typedef struct {
+  unsigned int read_internal_error;
+  unsigned int read_spi_error;
+  unsigned int read_i2c_error;
+  unsigned int write_internal_error;
+  unsigned int write_i2c_error;
+  unsigned int write_spi_error;
+  unsigned int crc_error;
+  unsigned int page_write_count_internal;
+  unsigned int page_write_count_spi;
+  unsigned int page_write_count_i2c;
+  unsigned int page_read_count_internal;
+  unsigned int page_read_count_spi;
+  unsigned int page_read_count_i2c;
+
+} TYPE_EEPROM_DEBUG_DATA;
+
+static TYPE_EEPROM_DEBUG_DATA eeprom_debug_data;
+
+static unsigned int ETMEEPromPrivateReadSinglePage(unsigned int page_number, unsigned int *page_data);
+static unsigned int ETMEEPromPrivateWriteSinglePage(unsigned int page_number, unsigned int *page_data);
+
+static unsigned int ETMEEPromPrivateWritePageInternal(unsigned int page_number, unsigned int *data);
+static unsigned int ETMEEPromPrivateReadPageInternal(unsigned int page_number, unsigned int *data);
+static unsigned int ETMEEPromPrivateWritePageI2C(unsigned int page_number, unsigned int *data);
+static unsigned int ETMEEPromPrivateReadPageI2C(unsigned int page_number, unsigned int *data);
+static unsigned int ETMEEPromPrivateWritePageSPI(unsigned int page_number, unsigned int *data);
+static unsigned int ETMEEPromPrivateReadPageSPI(unsigned int page_number, unsigned int *data);
+
+void ETMEEPromConfigureI2CDevice(unsigned int size_bytes, unsigned long fcy_clk, unsigned long i2c_baud_rate, unsigned char i2c_address, unsigned char i2c_port) {
+  external_eeprom_I2C.address = i2c_address;
+  external_eeprom_I2C.i2c_port = i2c_port;
+  external_eeprom_I2C.size_bytes = size_bytes;
+  ConfigureI2C(external_eeprom_I2C.i2c_port, I2CCON_DEFAULT_SETUP_PIC30F, i2c_baud_rate, fcy_clk, 0);
+}
+
+
+void ETMEEPromConfigureSPIDevice(unsigned int size_bytes,
+				 unsigned long fcy_clk,
+				 unsigned long spi_bit_rate,
+				 unsigned int  spi_port,
+				 unsigned long pin_chip_select_not,
+				 unsigned long pin_hold,
+				 unsigned long pin_write_protect) {
+  // DPARKER need to write this
+}
+
+
+
+void ETMEEPromUseInternal(void) {
+  etm_eeprom_selected_device = ETM_EEPROM_INTERNAL_SELECTED;
+}
+
+void ETMEEPromUseI2C(void) {
+  etm_eeprom_selected_device = ETM_EEPROM_I2C_SELECTED;
+}
+
+void ETMEEPromUseSPI(void) {
+  etm_eeprom_selected_device = ETM_EEPROM_SPI_SELECTED;
+}
+
+
+unsigned int ETMEEPromReturnActiveEEProm(void) {
+  return etm_eeprom_selected_device;
+}
+
+
+unsigned int ETMEEPromReadPage(unsigned int page_number, unsigned int *page_data) {
+  /*
+    Data will be returned in *page_data
+    If the function return is 0xFFFF the data is valid
+    If the function return is 0, the data is NOT valid
+  */
+  
+  page_number = page_number * 2;
+  if (ETMEEPromPrivateReadSinglePage(page_number, &page_data[0])) {
+    return 0xFFFF;
+  }
+  
+  if (ETMEEPromPrivateReadSinglePage(page_number + 1, &page_data[0])) {
+    return 0xFFFF;
+  }
+  
   return 0;
 }
 
-void ETMEEPromWritePageInternal(unsigned int page_number, unsigned int words_to_write, unsigned int *data) {
+
+unsigned int ETMEEPromWritePage(unsigned int page_number, unsigned int *page_data) {
+  /* 
+     Will return 0xFFFF if there were no write errors
+     Will return 0 if there was a write error to one (or both) registers
+  */
+  unsigned int error_check = 0xFFFF;
+
+  page_number = page_number * 2;
+  
+  error_check &= ETMEEPromPrivateWriteSinglePage(page_number, &page_data[0]);
+  
+  error_check &= ETMEEPromPrivateWriteSinglePage(page_number+1, &page_data[0]);
+  
+  return error_check;
 }
 
-void ETMEEPromReadPageInternal(unsigned int page_number, unsigned int words_to_read, unsigned int *data) {
-  unsigned int n;
+
+unsigned int ETMEEPromWritePageFast(unsigned int page_number, unsigned int *page_data) {
+  unsigned long long alternate_test = 0;
+  unsigned int actual_page;
+  /*
+    Alternate writing between pages
+    This should be used for something like pulse counter or off time where it doesn't cause a problem if we miss a single update
+    Will return 0xFFFF if there were no write errors
+    Will return 0 if there was a write error
+  */
   
-  if (words_to_read > 0) {
-    if (words_to_read > 16) {
-      words_to_read = 16;
+  actual_page = page_number * 2;
+
+  if (page_number <= 63) {
+    alternate_test = alternate_page_data >> page_number;
+    alternate_test &= 1;
+
+    if (alternate_test) {
+      // use the alternate page register
+      actual_page++;
     }
-    for (n = 0; n < words_to_read ; n++) {
-      data[n] = 0;
-    }
+    
+    alternate_test = 1;
+    alternate_test <<= page_number;
+    alternate_page_data ^= alternate_test;
+  } 
+  
+  return (ETMEEPromPrivateWriteSinglePage(actual_page, &page_data[0]));
+}
+
+
+unsigned int ETMEEPromWritePageWithConfirmation(unsigned int page_number, unsigned int *page_data) {
+  /*
+    Writes to the A and B pages and confirms the values after writing
+    This could take a long time to execute
+    Will return 0xFFFF if the page data is confirmed in both registers
+    Will return 0 if there were any errors (write/read/crc/confirmation)
+  */
+
+
+  unsigned int page_read[16];
+
+  // Write and check page A, abort on error
+  if (ETMEEPromPrivateWriteSinglePage(page_number, &page_data[0]) == 0) {
+    return 0;
   }
+  
+  if (ETMEEPromPrivateReadSinglePage(page_number, &page_read[0]) == 0) {
+    return 0;
+  }
+  
+
+  // DPARKER Figure out how to confirm the data sent matches the data read back
+  
+  
+  // Repeat for B register
+  if (ETMEEPromPrivateWriteSinglePage(page_number + 1, &page_data[0]) == 0) {
+    return 0;
+  }
+  
+  if (ETMEEPromPrivateReadSinglePage(page_number + 1, &page_read[0]) == 0) {
+    return 0;
+  }
+  
+  // DPARKER Figure out how to confirm the data sent matches the data read back
+
+  return 0xFFFF; // The write operation was sucessful
+}
+
+
+unsigned int ETMEEPromWriteWordWithConfirmation(unsigned int register_location, unsigned int data) {
+  unsigned int page_read[16];
+  unsigned int page_number;
+
+  page_number = register_location >> 4;
+  register_location &= 0x0F;
+  
+  // Load the existing contents of the register
+  if (ETMEEPromReadPage(page_number, &page_read[0]) == 0) {
+    return 0;
+  }
+  
+  // Modify the value being changed
+  *(&page_read[0] + register_location*2) = data;
+  
+  // Write the data back to EEProm
+  if (ETMEEPromWritePageWithConfirmation(page_number, &page_read[0])) {
+    return 0xFFFF;
+  }
+  
+  return 0;
+}
+
+
+unsigned int ETMEEPromPrivateReadSinglePage(unsigned int page_number, unsigned int *page_data) {
+  unsigned int crc_check;
+
+  switch (ETMEEPromReturnActiveEEProm()) {
+    
+  case ETM_EEPROM_INTERNAL_SELECTED:
+    eeprom_debug_data.page_read_count_internal++;
+    if (ETMEEPromPrivateReadPageInternal(page_number, &page_data[0]) == 0) {
+      eeprom_debug_data.read_internal_error++;
+      return 0;
+    } 
+    break;
+    
+  case ETM_EEPROM_I2C_SELECTED:
+    eeprom_debug_data.page_read_count_i2c++;
+    if (ETMEEPromPrivateReadPageI2C(page_number, &page_data[0]) == 0) {
+      eeprom_debug_data.read_i2c_error++;
+      return 0;
+    }
+    break;
+    
+  case ETM_EEPROM_SPI_SELECTED:
+    eeprom_debug_data.page_read_count_spi++;
+    if (ETMEEPromPrivateReadPageSPI(page_number, &page_data[0]) == 0) {
+      eeprom_debug_data.read_spi_error++;
+      return 0;
+    }
+    break;
+
+  default:
+    return 0;
+    break;
+    
+  }
+
+  crc_check = ETMCRCModbus(&page_data[0], 30);
+  if (crc_check != page_data[15]) {
+    eeprom_debug_data.crc_error++;
+    return 0;
+  }
+  return 0xFFFF;
+}
+
+
+unsigned int ETMEEPromPrivateWriteSinglePage(unsigned int page_number, unsigned int *page_data) {
+  unsigned int crc;
+  crc = ETMCRCModbus(&page_data[0], 30);
+  page_data[15] = crc;
+
+  switch (ETMEEPromReturnActiveEEProm()) {
+    
+  case ETM_EEPROM_INTERNAL_SELECTED:
+    eeprom_debug_data.page_write_count_internal++;
+    if (ETMEEPromPrivateWritePageInternal(page_number, &page_data[0])) {
+      return 0xFFFF;
+    } else {
+      eeprom_debug_data.write_internal_error++;
+      return 0;
+    } 
+    break;
+
+  case ETM_EEPROM_I2C_SELECTED:
+    eeprom_debug_data.page_write_count_i2c++;
+    if (ETMEEPromPrivateWritePageI2C(page_number, &page_data[0])) {
+      return 0xFFFF;
+    } else {
+      eeprom_debug_data.write_i2c_error++;
+      return 0;
+    }
+    break;
+
+  case ETM_EEPROM_SPI_SELECTED:
+    eeprom_debug_data.page_write_count_spi++;
+    if (ETMEEPromPrivateWritePageSPI(page_number, &page_data[0])) {
+      return 0xFFFF;
+    } else {
+      eeprom_debug_data.write_spi_error++;
+      return 0;
+    }
+    break;
+
+  default:
+    return 0;
+    break;
+  }
+
+  return 0;
+}
+
+
+
+
+#if INTERNAL_EEPROM_SIZE_WORDS == 0
+unsigned int ETMEEPromPrivateWritePageInternal(unsigned int page_number, unsigned int *data) {
+  return 0;
+}
+
+unsigned int ETMEEPromPrivateReadPageInternal(unsigned int page_number, unsigned int *data) {
+  return 0;
 }
 
 #else
 
 __eds__ unsigned int internal_eeprom[INTERNAL_EEPROM_SIZE_WORDS] __attribute__ ((space(eedata))) = {};
 
-
-void ETMEEPromWriteWordInternal(unsigned int register_location, unsigned int data) {
-  _prog_addressT write_address;
-  
-  if (register_location < INTERNAL_EEPROM_SIZE_WORDS) {
-    write_address = __builtin_tbladdress(internal_eeprom);
-    _wait_eedata();
-    _erase_eedata((write_address + register_location*2), _EE_WORD);
-    _wait_eedata();
-    _write_eedata_word((write_address + register_location*2), data);  
-  }
-}
-
-
-unsigned int ETMEEPromReadWordInternal(unsigned int register_location) {
-  if (register_location < INTERNAL_EEPROM_SIZE_WORDS) {
-    _wait_eedata();
-    return internal_eeprom[register_location];
-  } else {
-    return 0xFFFF;
-  }
-}
-
-
-void ETMEEPromWritePageInternal(unsigned int page_number, unsigned int words_to_write, unsigned int *data) {
+unsigned int ETMEEPromPrivateWritePageInternal(unsigned int page_number, unsigned int *data) {
   _prog_addressT write_address;
   unsigned int n = 0;
   int data_ram[16];
+  unsigned int words_to_write;
 
-  if (words_to_write > 0) {
-    if (words_to_write > 16) {
-      words_to_write = 16;
-    }
-    
-    ETMEEPromReadPage(page_number, 16, (unsigned int*)&data_ram);
-    
-    while (n < words_to_write) {
-      data_ram[n] = (int)data[n];
-      n++;
-    }
-    
-    if (page_number < (INTERNAL_EEPROM_SIZE_WORDS >> 4)) {
-      write_address = __builtin_tbladdress(internal_eeprom);
-      write_address += page_number << 5;
-      // The requeted page address is within the boundry of this device.
-      _wait_eedata();
-      _erase_eedata(write_address, _EE_ROW);
-      _wait_eedata();
-      _write_eedata_row(write_address, data_ram);
-    }
+  // DPARKER, remove the data_ram variable and write directly with data pointer
+
+  words_to_write = 16;
+  
+  while (n < words_to_write) {
+    data_ram[n] = (int)data[n];
+    n++;
   }
+  
+  if (page_number > (INTERNAL_EEPROM_SIZE_WORDS >> 4)) {
+    return 0;
+  }
+    
+  write_address = __builtin_tbladdress(internal_eeprom);
+  write_address += page_number << 5;
+  _wait_eedata();
+  _erase_eedata(write_address, _EE_ROW);
+  _wait_eedata();
+  _write_eedata_row(write_address, data_ram);
+  
+  return 0xFFFF;
 }
 
-void ETMEEPromReadPageInternal(unsigned int page_number, unsigned int words_to_read, unsigned int *data) {
+
+unsigned int ETMEEPromPrivateReadPageInternal(unsigned int page_number, unsigned int *data) {
   unsigned int starting_register;
   unsigned int n;
-  
+  unsigned int words_to_read;
+
+  words_to_read = 16;
   starting_register = page_number*16;
   _wait_eedata();
-  if (words_to_read > 0) {
-    if (words_to_read > 16) {
-      words_to_read = 16;
-    }
-    if (page_number < (INTERNAL_EEPROM_SIZE_WORDS >> 4)) {
-      for (n = 0; n < words_to_read ; n++) {
-	data[n] = internal_eeprom[starting_register + n];
-      }
-    }
+ 
+  if (page_number > (INTERNAL_EEPROM_SIZE_WORDS >> 4)) {
+    return 0;
   }
+   
+  for (n = 0; n < words_to_read ; n++) {
+    data[n] = internal_eeprom[starting_register + n];
+  }
+  
+  return 0xFFFF;
 }
 
 #endif
 
-
-
-// -----------------------  EXTERNAL EEPROM FUNCTIONS -------------------------------- //
-
-
-void ETMEEPromWriteWordExternal(unsigned int register_location, unsigned int data) {
+unsigned int ETMEEPromPrivateWritePageI2C(unsigned int page_number, unsigned int *data) {
   unsigned int temp;
   unsigned char adr_high_byte;
   unsigned char adr_low_byte;
   unsigned char data_low_byte;
   unsigned char data_high_byte;
   unsigned int error_check;
+  unsigned int n;
   unsigned int busy_count;
   unsigned int busy;
-   
-   
-  if (register_location < (external_eeprom.size_bytes >> 1) ) {
-    // The requeted register address is within the boundry of this device.
-    
-    data_high_byte = (data >> 8);
-    data_low_byte = (data & 0x00FF);
-    
-    temp = (register_location << 1);
-    adr_high_byte = (temp >> 8);
-    adr_low_byte = (temp & 0x00FF);
-    
-    error_check = 1;
-    error_check = WaitForI2CBusIdle(external_eeprom.i2c_port);
-    error_check |= GenerateI2CStart(external_eeprom.i2c_port);
-    error_check |= WriteByteI2C(external_eeprom.address | I2C_WRITE_CONTROL_BIT, external_eeprom.i2c_port);
+  unsigned int words_to_write;
 
-    busy = _ACKSTAT;
-    busy_count = 0;
-    while (busy && (busy_count <= 200)) {
-      error_check |= GenerateI2CStop(external_eeprom.i2c_port);
-      error_check = WaitForI2CBusIdle(external_eeprom.i2c_port);
-      error_check |= GenerateI2CStart(external_eeprom.i2c_port);
-      error_check |= WriteByteI2C(external_eeprom.address | I2C_WRITE_CONTROL_BIT, external_eeprom.i2c_port);
-      busy = _ACKSTAT;
-      busy_count++;
-    }
-    
-    error_check |= WriteByteI2C(adr_high_byte, external_eeprom.i2c_port);
-    error_check |= WriteByteI2C(adr_low_byte, external_eeprom.i2c_port);
-    error_check |= WriteByteI2C(data_low_byte, external_eeprom.i2c_port);
-    error_check |= WriteByteI2C(data_high_byte, external_eeprom.i2c_port);
-    error_check |= GenerateI2CStop(external_eeprom.i2c_port);
-  } else {
-    // The requested address to write is outside the boundry of this device
-    error_check = 0xFFFF;
+  words_to_write = 16;
+
+  if (page_number > (external_eeprom_I2C.size_bytes >> 5)) {
+    // The requeted page address is outside the boundry of this device.
+    return 0;
   }
 
-  // DPARKER - what to do if error check != 0?
-}
-
-unsigned int ETMEEPromReadWordExternal(unsigned int register_location) {
-  unsigned int error_check;
-  unsigned int temp;
-  unsigned char adr_high_byte;
-  unsigned char adr_low_byte;
-  unsigned char data_low_byte;
-  unsigned char data_high_byte;
-  unsigned int busy_count;
-  unsigned int busy;
-
-  if (register_location < (external_eeprom.size_bytes >> 1) ) {
-    // The requeted register address is within the boundry of this device.
-    
-    temp = (register_location << 1);
-    adr_high_byte = (temp >> 8);
-    adr_low_byte = (temp & 0x00FF);
- 
-    error_check = WaitForI2CBusIdle(external_eeprom.i2c_port);
-    error_check |= GenerateI2CStart(external_eeprom.i2c_port);
-    error_check |= WriteByteI2C(external_eeprom.address | I2C_WRITE_CONTROL_BIT, external_eeprom.i2c_port);
-
-    busy = _ACKSTAT;
-    busy_count = 0;
-    while (busy && (busy_count <= 200)) {
-      error_check |= GenerateI2CStop(external_eeprom.i2c_port);
-      error_check = WaitForI2CBusIdle(external_eeprom.i2c_port);
-      error_check |= GenerateI2CStart(external_eeprom.i2c_port);
-      error_check |= WriteByteI2C(external_eeprom.address | I2C_WRITE_CONTROL_BIT, external_eeprom.i2c_port);
-      busy = _ACKSTAT;
-      busy_count++;
-    }
-
-    error_check |= WriteByteI2C(adr_high_byte, external_eeprom.i2c_port);
-    error_check |= WriteByteI2C(adr_low_byte, external_eeprom.i2c_port);
-    
-    error_check |= GenerateI2CRestart(external_eeprom.i2c_port);
-    error_check |= WriteByteI2C(external_eeprom.address | I2C_READ_CONTROL_BIT, external_eeprom.i2c_port);
-    data_low_byte = ReadByteI2C(external_eeprom.i2c_port);
-    error_check |= GenerateI2CAck(external_eeprom.i2c_port);
-    data_high_byte = ReadByteI2C(external_eeprom.i2c_port);
-    error_check |= GenerateI2CNack(external_eeprom.i2c_port);
-
-    error_check |= GenerateI2CStop(external_eeprom.i2c_port);
   
-  } else {
-    // The requested address to write is outside the boundry of this device
-    error_check = 0xFFFF;
-    data_low_byte = 0;
-    data_high_byte = 0;
+  temp = (page_number << 5);
+  adr_high_byte = (temp >> 8);
+  adr_low_byte = (temp & 0x00FF);
+  
+  
+  error_check = WaitForI2CBusIdle(external_eeprom_I2C.i2c_port);
+  error_check |= GenerateI2CStart(external_eeprom_I2C.i2c_port);
+  error_check |= WriteByteI2C(external_eeprom_I2C.address | I2C_WRITE_CONTROL_BIT, external_eeprom_I2C.i2c_port);  
+  busy = _ACKSTAT;
+  busy_count = 0;
+  
+  // DPARKER, change busy count to use ETM_TICK
+  while (busy && (busy_count <= 200)) {
+    error_check |= GenerateI2CStop(external_eeprom_I2C.i2c_port);
+    error_check = WaitForI2CBusIdle(external_eeprom_I2C.i2c_port);
+    error_check |= GenerateI2CStart(external_eeprom_I2C.i2c_port);
+    error_check |= WriteByteI2C(external_eeprom_I2C.address | I2C_WRITE_CONTROL_BIT, external_eeprom_I2C.i2c_port);
+    busy = _ACKSTAT;
+    busy_count++;
+  }
+  
+  
+  error_check |= WriteByteI2C(adr_high_byte, external_eeprom_I2C.i2c_port);
+  error_check |= WriteByteI2C(adr_low_byte, external_eeprom_I2C.i2c_port);
+  
+  for (n = 0; n < words_to_write ; n++) {
+    data_high_byte = (data[n] >> 8);
+    data_low_byte = (data[n] & 0x00FF);
+    error_check |= WriteByteI2C(data_low_byte, external_eeprom_I2C.i2c_port);
+    error_check |= WriteByteI2C(data_high_byte, external_eeprom_I2C.i2c_port);    
   }
 
-  // DPARKER - what to do if error check != 0?  Probably return zero and increment error counter
-
-  temp = data_high_byte;
-  temp <<= 8; 
-  temp += data_low_byte;
-  return temp;
-
+    
+  error_check |= GenerateI2CStop(external_eeprom_I2C.i2c_port);
+  
+  if (error_check) {
+    return 0;
+  }
+  return 0xFFFF;
 }
 
 
-void ETMEEPromWritePageExternal(unsigned int page_number, unsigned int words_to_write, unsigned int *data) {
-  unsigned int temp;
-  unsigned char adr_high_byte;
-  unsigned char adr_low_byte;
-  unsigned char data_low_byte;
-  unsigned char data_high_byte;
-  unsigned int error_check;
-  unsigned int n;
-  unsigned int busy_count;
-  unsigned int busy;
-
-  if (words_to_write > 0) {
-    if (words_to_write > 16) {
-      words_to_write = 16;
-    }
-    if (page_number < (external_eeprom.size_bytes >> 5)) {
-      // The requeted page address is within the boundry of this device.
-      
-      temp = (page_number << 5);
-      adr_high_byte = (temp >> 8);
-      adr_low_byte = (temp & 0x00FF);
-      
-      
-      error_check = WaitForI2CBusIdle(external_eeprom.i2c_port);
-      error_check |= GenerateI2CStart(external_eeprom.i2c_port);
-      error_check |= WriteByteI2C(external_eeprom.address | I2C_WRITE_CONTROL_BIT, external_eeprom.i2c_port);  
-      busy = _ACKSTAT;
-      busy_count = 0;
-      while (busy && (busy_count <= 200)) {
-	error_check |= GenerateI2CStop(external_eeprom.i2c_port);
-	error_check = WaitForI2CBusIdle(external_eeprom.i2c_port);
-	error_check |= GenerateI2CStart(external_eeprom.i2c_port);
-	error_check |= WriteByteI2C(external_eeprom.address | I2C_WRITE_CONTROL_BIT, external_eeprom.i2c_port);
-	busy = _ACKSTAT;
-	busy_count++;
-      }
-      
-
-      error_check |= WriteByteI2C(adr_high_byte, external_eeprom.i2c_port);
-      error_check |= WriteByteI2C(adr_low_byte, external_eeprom.i2c_port);
-      
-      for (n = 0; n < words_to_write ; n++) {
-	data_high_byte = (data[n] >> 8);
-	data_low_byte = (data[n] & 0x00FF);
-	error_check |= WriteByteI2C(data_low_byte, external_eeprom.i2c_port);
-	error_check |= WriteByteI2C(data_high_byte, external_eeprom.i2c_port);    
-      }
-      
-      
-      error_check |= GenerateI2CStop(external_eeprom.i2c_port);
-      
-    } else {
-      // The requested page to write is outside the boundry of this device
-      error_check = 0xFFFF;
-    }
-    // DPARKER - what to do if error check != 0?
-  }
-
-}
-
-
-void ETMEEPromReadPageExternal(unsigned int page_number, unsigned int words_to_read, unsigned int *data) {
+unsigned int ETMEEPromPrivateReadPageI2C(unsigned int page_number, unsigned int *data) {
   unsigned int error_check;
   unsigned int temp;
   unsigned char adr_high_byte;
@@ -412,65 +467,73 @@ void ETMEEPromReadPageExternal(unsigned int page_number, unsigned int words_to_r
   unsigned int n;
   unsigned int busy_count;
   unsigned int busy;
+  unsigned int words_to_read;
 
-  if (words_to_read > 0) {
-    if (words_to_read > 16) {
-      words_to_read = 16;
-    }
-    if (page_number < (external_eeprom.size_bytes >> 5) ) {
-      // The requeted page address is within the boundry of this device.
-      
-      temp = (page_number << 5);
-      adr_high_byte = (temp >> 8);
-      adr_low_byte = (temp & 0x00FF);
+  words_to_read = 16;
 
-      error_check = WaitForI2CBusIdle(external_eeprom.i2c_port);
-      error_check |= GenerateI2CStart(external_eeprom.i2c_port);      
-      error_check |= WriteByteI2C(external_eeprom.address | I2C_WRITE_CONTROL_BIT, external_eeprom.i2c_port);
-      busy = _ACKSTAT;
-      busy_count = 0;
-      while (busy && (busy_count <= 200)) {
-	error_check |= GenerateI2CStop(external_eeprom.i2c_port);
-	error_check = WaitForI2CBusIdle(external_eeprom.i2c_port);
-	error_check |= GenerateI2CStart(external_eeprom.i2c_port);
-	error_check |= WriteByteI2C(external_eeprom.address | I2C_WRITE_CONTROL_BIT, external_eeprom.i2c_port);
-	busy = _ACKSTAT;
-	busy_count++;
-      }
-
-      error_check |= WriteByteI2C(adr_high_byte, external_eeprom.i2c_port);
-      error_check |= WriteByteI2C(adr_low_byte, external_eeprom.i2c_port);
-      
-      error_check |= GenerateI2CRestart(external_eeprom.i2c_port);
-      error_check |= WriteByteI2C(external_eeprom.address | I2C_READ_CONTROL_BIT, external_eeprom.i2c_port);
-      
-      for (n = 0; n < words_to_read-1 ; n++) {
-	data_low_byte = ReadByteI2C(external_eeprom.i2c_port);
-	error_check |= GenerateI2CAck(external_eeprom.i2c_port);
-	data_high_byte = ReadByteI2C(external_eeprom.i2c_port);
-	error_check |= GenerateI2CAck(external_eeprom.i2c_port);
-	data[n] = data_high_byte;
-	data[n] <<= 8;
-	data[n] += data_low_byte; 
-      }
-      
-      data_low_byte = ReadByteI2C(external_eeprom.i2c_port);
-      error_check |= GenerateI2CAck(external_eeprom.i2c_port);
-      data_high_byte = ReadByteI2C(external_eeprom.i2c_port);
-      error_check |= GenerateI2CNack(external_eeprom.i2c_port);
-      data[n] = data_high_byte;
-      data[n] <<= 8;
-      data[n] += data_low_byte; 
-
-      
-      error_check |= GenerateI2CStop(external_eeprom.i2c_port);
-      
-    } else {
-      // The requested page to read is outside the boundry of this device
-      error_check = 0xFFFF;
-      data_low_byte = 0;
-      data_high_byte = 0;
-    }
-   // DPARKER - what to do if error check != 0?  Probably return zero and increment error counter
+  if (page_number > (external_eeprom_I2C.size_bytes >> 5) ) {
+    // The requeted page address is outside the boundry of this device.
+    return 0;
   }
+    
+  temp = (page_number << 5);
+  adr_high_byte = (temp >> 8);
+  adr_low_byte = (temp & 0x00FF);
+  
+  error_check = WaitForI2CBusIdle(external_eeprom_I2C.i2c_port);
+  error_check |= GenerateI2CStart(external_eeprom_I2C.i2c_port);      
+  error_check |= WriteByteI2C(external_eeprom_I2C.address | I2C_WRITE_CONTROL_BIT, external_eeprom_I2C.i2c_port);
+  busy = _ACKSTAT;
+  busy_count = 0;
+  while (busy && (busy_count <= 200)) {
+    error_check |= GenerateI2CStop(external_eeprom_I2C.i2c_port);
+    error_check = WaitForI2CBusIdle(external_eeprom_I2C.i2c_port);
+    error_check |= GenerateI2CStart(external_eeprom_I2C.i2c_port);
+    error_check |= WriteByteI2C(external_eeprom_I2C.address | I2C_WRITE_CONTROL_BIT, external_eeprom_I2C.i2c_port);
+    busy = _ACKSTAT;
+    busy_count++;
+  }
+  
+  error_check |= WriteByteI2C(adr_high_byte, external_eeprom_I2C.i2c_port);
+  error_check |= WriteByteI2C(adr_low_byte, external_eeprom_I2C.i2c_port);
+  
+  error_check |= GenerateI2CRestart(external_eeprom_I2C.i2c_port);
+  error_check |= WriteByteI2C(external_eeprom_I2C.address | I2C_READ_CONTROL_BIT, external_eeprom_I2C.i2c_port);
+  
+  for (n = 0; n < words_to_read-1 ; n++) {
+    data_low_byte = ReadByteI2C(external_eeprom_I2C.i2c_port);
+    error_check |= GenerateI2CAck(external_eeprom_I2C.i2c_port);
+    data_high_byte = ReadByteI2C(external_eeprom_I2C.i2c_port);
+    error_check |= GenerateI2CAck(external_eeprom_I2C.i2c_port);
+    data[n] = data_high_byte;
+    data[n] <<= 8;
+    data[n] += data_low_byte; 
+  }
+  
+  data_low_byte = ReadByteI2C(external_eeprom_I2C.i2c_port);
+  error_check |= GenerateI2CAck(external_eeprom_I2C.i2c_port);
+  data_high_byte = ReadByteI2C(external_eeprom_I2C.i2c_port);
+  error_check |= GenerateI2CNack(external_eeprom_I2C.i2c_port);
+  data[n] = data_high_byte;
+  data[n] <<= 8;
+  data[n] += data_low_byte; 
+  
+    
+  error_check |= GenerateI2CStop(external_eeprom_I2C.i2c_port);
+  
+  if (error_check) {
+    return 0;
+  }
+  
+  return 0xFFFF;
+}
+
+
+
+unsigned int ETMEEPromPrivateWritePageSPI(unsigned int page_number, unsigned int *data) {
+  return 0;
+}
+
+unsigned int ETMEEPromPrivateReadPageSPI(unsigned int page_number, unsigned int *data) {
+  return 0;
 }

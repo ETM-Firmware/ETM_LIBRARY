@@ -1,9 +1,8 @@
 #ifndef __ETM_ANALOG
 #define __ETM_ANALOG
-#include "ETM_SCALE.h"
 
 
-#define ETM_ANALOG_VERSION    02
+#define ETM_ANALOG_VERSION    04
 
 
 /*
@@ -20,8 +19,10 @@
 
 typedef struct {
   unsigned long adc_accumulator;
-  unsigned int filtered_adc_reading;
-  unsigned int reading_scaled_and_calibrated;
+  unsigned int  adc_accumulator_counter;
+  unsigned int  filtered_adc_reading;
+  unsigned int  reading_scaled_and_calibrated;
+  unsigned int  samples_to_filter_2_to_n;
 
   // -------- These are used to calibrate and scale the ADC Reading to Engineering Units ---------
   unsigned int fixed_scale;
@@ -32,157 +33,160 @@ typedef struct {
   signed int   calibration_external_offset;
 
 
-  // --------  These are used for fault detection ------------------ 
-  unsigned int over_trip_point_absolute;          // If the value exceeds this it will trip immediatly
-  unsigned int under_trip_point_absolute;         // If the value is less than this it will trip immediatly
+  // --------  These are used for fixed fault detection ------------------ 
+  unsigned int fixed_over_trip_point;          // If the value exceeds this it will trip immediatly
+  unsigned int fixed_under_trip_point;         // If the value is less than this it will trip immediatly
+  unsigned int fixed_over_trip_counter;        // This counts the number of samples over the fixed_over_trip_point (will decrement each sample over test is false)
+  unsigned int fixed_under_trip_counter;       // This counts the number of samples under the fixed_under_trip_point (will decrement each sample under test is false)
+  unsigned int fixed_counter_fault_limit;      // The over / under trip counter must reach this value to generate a fault
+
+
+  // --------  These are used for relative fault detection ------------------ 
   unsigned int target_value;                      // This is the target value (probably set point) in engineering units
-  unsigned int relative_trip_point_scale;         // This will be something like 5%, 10%, ect
-  unsigned int relative_trip_point_floor;         // If target_value * relative_trip_point_floor is less than the floor value, the floor value will be used instead
-                                                  // Trip Points = target_value +/- GreaterOf [(target_value*relative_trip_point_scale) OR (relative_trip_point_floor)] 
-  unsigned int over_trip_counter;                 // This counts the number of samples over the relative_over_trip_point (will decrement each sample over test is false)
-  unsigned int under_trip_counter;                // This counts the number of samples under the relative_under_trip_point (will decrement each sample under test is false)
+  unsigned int relative_over_trip_point;
+  unsigned int relative_under_trip_point;
+  unsigned int relative_over_trip_counter;        // This counts the number of samples over the relative_over_trip_point (will decrement each sample over test is false)
+  unsigned int relative_under_trip_counter;       // This counts the number of samples under the relative_under_trip_point (will decrement each sample under test is false)
   unsigned int relative_counter_fault_limit;      // The over / under trip counter must reach this value to generate a fault
 
-  unsigned int absolute_over_counter;
-  unsigned int absolute_under_counter;
-  unsigned int absolute_counter_fault_limit;
-
-} AnalogInput;
+} TYPE_ANALOG_INPUT;
 
 
 typedef struct {
   unsigned int set_point;
-  unsigned int dac_setting_scaled_and_calibrated;
-  unsigned int enabled;
-
   unsigned int max_set_point;
   unsigned int min_set_point;
-  unsigned int disabled_dac_set_point;
+  unsigned int disabled_set_point;
+  unsigned int output_enabled;
 
   // -------- These are used to calibrate and scale the ADC Reading to Engineering Units ---------
   unsigned int fixed_scale;
   signed int   fixed_offset;
+
   unsigned int calibration_internal_scale;
   signed int   calibration_internal_offset;
   unsigned int calibration_external_scale;
   signed int   calibration_external_offset;
 
-} AnalogOutput;
+} TYPE_ANALOG_OUTPUT;
 
 
-void ETMAnalogInitializeInput(AnalogInput* ptr_analog_input,
-			      unsigned int fixed_scale,
-			      signed int fixed_offset,
-			      unsigned char analog_port,
-			      unsigned int over_trip_point_absolute,
-			      unsigned int under_trip_point_absolute,
-			      unsigned int relative_trip_point_scale,
-			      unsigned int relative_trip_point_floor,
-			      unsigned int relative_counter_fault_limit,
-			      unsigned int absolute_counter_fault_limit);
-
-void ETMAnalogInitializeOutput(AnalogOutput* ptr_analog_output,
-			       unsigned int fixed_scale,
-			       signed int fixed_offset,
-			       unsigned char analog_port,
-			       unsigned int max_set_point,
-			       unsigned int min_set_point,
-			       unsigned int disabled_dac_set_point);
-
-
-unsigned int ETMAnalogCheckEEPromInitialized();
+void ETMAnalogInputInitialize(TYPE_ANALOG_INPUT*  ptr_analog_input, 
+			      unsigned int  fixed_scale, 
+			      signed int    fixed_offset, 
+			      unsigned int  filter_samples_2_n);
 /*
-  This checks to see if the EEPROM has been initialized
-  It checks that EEPROM Register 0x01FF = 0xAAAA
-  Returns 1 if the EEProm has been initialized, 0 otherwise
-*/
-
-void ETMAnalogLoadDefaultCalibration(void);
-/*
-  This loads default values into the EEPROM
+  Initialize the Analog Input
+  fixed_scale and fixed_offset are the Application Specfic Analog scaling
+  filter_samples_2_n is the number of samples to be avaerage. 0=1 sample, 1=2 samples, 2=4 samples, . . . . up to a max of N=15 (32768 samples)
 */
 
 
-void ETMAnalogScaleCalibrateDACSetting(AnalogOutput* ptr_analog_output);
-/*
-  Converts the engineering units set point into a binary to be written to DAC
+void ETMAnalogInputLoadCalibration(TYPE_ANALOG_INPUT*  ptr_analog_input, 
+				   unsigned int  internal_scale,
+				   signed int    internal_offset,
+				   unsigned int  external_scale,
+				   signed int    external_offset);
 
-  1) Make sure the set point is within valid range
-  2) Convert that set poing into DAC setting
-  3a) If enabled load DAC setting into dac_setting_scaled_and_calibrated
-  3b) If disabled load disabled_dac_set_point into dac_setting_scaled_and_calibrated
-*/
-
-void ETMAnalogScaleCalibrateADCReading(AnalogInput* ptr_analog_input);
 /*
-  Converts ADC binary into engineering units
+  Optionally load non-default calibration data.
+  This could come from the EEPROM at board board of from external control system
 */
 
 
-
-void ETMAnalogSetOutput(AnalogOutput* ptr_analog_output, unsigned int new_set_point);
+void ETMAnalogInputInitializeFixedTripLevels(TYPE_ANALOG_INPUT* ptr_analog_input,
+					     unsigned int fixed_over_trip_point, 
+					     unsigned int fixed_under_trip_point, 
+					     unsigned int fixed_counter_fault_limit);
 /*
-  This limits new_set_point to valid range then writes to .set_point
-  This function is no longer required because the set_point valid range is now checked every time the DAC is written to
+  Optionally load fixed over and under trip limits
+  See ETMAnalogInputUpdateFaults for more info
 */
 
 
-unsigned int ETMAnalogCheckOverAbsolute(AnalogInput* ptr_analog_input);
+void ETMAnalogInputInitializeRelativeTripLevels(TYPE_ANALOG_INPUT* ptr_analog_input,
+						unsigned int target_value,
+						unsigned int relative_trip_point_scale, 
+						unsigned int relative_trip_point_floor, 
+						unsigned int relative_counter_fault_limit);
 /*
-  Used to check for an Over Absolute Condition based on values at initialization
+  Optionally load relative over and under trip limits
+  The trip limits are target_value +/- (CALCULATED_TRIP_LEVEL)
+  CALCULATED_TRIP_LEVEL = maximum((target_value * relative_trip_point_scale), relative_trip_point_floor)
+  See ETMAnalogInputUpdateFaults for more info
 */
 
-unsigned int ETMAnalogCheckUnderAbsolute(AnalogInput* ptr_analog_input);
+
+void ETMAnalogInputUpdate(TYPE_ANALOG_INPUT* ptr_analog_input, unsigned int adc_reading);
 /*
-  Used to check for an Under Absolute Condition based on values at initialization
+  Loads a raw ADC reading and average, scales, calibrates and updates .reading_scaled_and_calibrated as configured above
 */
 
-unsigned int ETMAnalogCheckOverRelative(AnalogInput* ptr_analog_input);
-/*
-  Used to check for an Over Relative Condition based on values at initialization
-*/
 
-unsigned int ETMAnalogCheckUnderRelative(AnalogInput* ptr_analog_input);
-/*
-  Used to check for an Under Relative Condition based on values at initialization
-*/
 
-void ETMAnalogClearFaultCounters(AnalogInput* ptr_analog_input);
+void ETMAnalogInputUpdateFaults(TYPE_ANALOG_INPUT* ptr_analog_input);
 /*
-  This clears all of the fault counters
-  Over Absolute, Under Absolute, Over Relative, Under Relative
-  This is used when clear a fault so that there is no memory of the faulted condidtion
-*/
-
+  Compares .reading_scaled_and_calibrated to the over and under limits
+  Updates the 
   
-#define ANALOG_INPUT_0      0x0
-#define ANALOG_INPUT_1      0x1
-#define ANALOG_INPUT_2      0x2
-#define ANALOG_INPUT_3      0x3
-#define ANALOG_INPUT_4      0x4
-#define ANALOG_INPUT_5      0x5
-#define ANALOG_INPUT_6      0x6
-#define ANALOG_INPUT_7      0x7
-#define ANALOG_INPUT_8      0x8
-#define ANALOG_INPUT_9      0x9
-#define ANALOG_INPUT_A      0xA
-#define ANALOG_INPUT_B      0xB
-#define ANALOG_INPUT_C      0xC
-#define ANALOG_INPUT_D      0xD
-#define ANALOG_INPUT_E      0xE
-#define ANALOG_INPUT_F      0xF
-#define ANALOG_INPUT_NO_CALIBRATION    0xFF
+*/
 
 
-#define ANALOG_OUTPUT_0     0x0
-#define ANALOG_OUTPUT_1     0x1
-#define ANALOG_OUTPUT_2     0x2
-#define ANALOG_OUTPUT_3     0x3
-#define ANALOG_OUTPUT_4     0x4
-#define ANALOG_OUTPUT_5     0x5
-#define ANALOG_OUTPUT_6     0x6
-#define ANALOG_OUTPUT_7     0x7
-#define ANALOG_OUTPUT_NO_CALIBRATION   0xFF
+void ETMAnalogInputClearFaultCounters(TYPE_ANALOG_INPUT* ptr_analog_input);
+/*
+  Sets all of the fault counters back to zero
+*/
+
+unsigned int ETMAnalogFaultOverFixed(TYPE_ANALOG_INPUT* ptr_analog_input);
+unsigned int ETMAnalogFaultUnderFixed(TYPE_ANALOG_INPUT* ptr_analog_input);
+unsigned int ETMAnalogFaultOverRelative(TYPE_ANALOG_INPUT* ptr_analog_input);
+unsigned int ETMAnalogFaultUnderRelative(TYPE_ANALOG_INPUT* ptr_analog_input);
+
+
+
+
+void ETMAnalogOutputInitialize(TYPE_ANALOG_OUTPUT* ptr_analog_output, 
+			       unsigned int fixed_scale, 
+			       signed int   fixed_offset,
+			       unsigned int max_set_point, 
+			       unsigned int min_set_point, 
+			       unsigned int disabled_set_point);
+/*
+  Initialize the Analog Output - Starts up in the disabled state
+  fixed_scale and fixed_offset are the Application Specfic Analog scaling
+  min_set_point and max_set_point are the minimum and maximum set points (in engineering units)
+  disabled_set_point is the output when disabled (typically this will be zero, but can be whatever makes sense for the application)
+  disabled_set_point is to NOT required to within the min->max set point range
+*/
+
+
+void ETMAnalogOutputLoadCalibration(TYPE_ANALOG_OUTPUT* ptr_analog_output,
+				    unsigned int internal_scale,
+				    signed int   internal_offset,
+				    unsigned int external_scale,
+				    signed int   external_offset);
+/*
+  Optionally load non-default calibration data.
+  This could come from the EEPROM at board board of from external control system
+*/
+
+
+void ETMAnalogOutputSetPoint(TYPE_ANALOG_OUTPUT* ptr_analog_output, unsigned int new_set_point);
+/*
+  Confirms that new_set_point is within the valid set point range
+  If above the max value, will be set to max.
+  If bellow the min value, will be set to min.
+*/
+
+unsigned int ETMAnalogOuputGetDACValue(TYPE_ANALOG_OUTPUT* ptr_analog_output);
+/*
+  This will return the value that needs to be written to the DAC to generate the requested output
+  If the dac is disabled, this will return the DAC value associated with "disabled_set_point"
+  If the dac is enabled, this will return the DAC value assoicated with "set_point"
+*/
+
+void ETMAnalogOutputDisable(TYPE_ANALOG_OUTPUT* ptr_analog_output);
+void ETMAnalogOutputEnable(TYPE_ANALOG_OUTPUT* ptr_analog_output);
 
 
 #define OFFSET_ZERO                                 0
