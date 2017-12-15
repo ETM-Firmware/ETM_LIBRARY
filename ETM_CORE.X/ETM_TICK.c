@@ -174,3 +174,9 @@ unsigned int ETMTickPrivateGreaterThan(unsigned long start_tick, unsigned long d
   
   return 0;
 }
+
+
+unsigned int ETMTickGet1msMultiplier(void) {
+  ETMTickGet();
+  return etm_tick_delay_1ms;
+}

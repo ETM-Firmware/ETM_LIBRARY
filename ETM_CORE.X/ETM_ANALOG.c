@@ -127,7 +127,7 @@ void ETMAnalogInputInitializeFixedTripLevels(TYPE_PUBLIC_ANALOG_INPUT* input_ptr
   TYPE_ANALOG_INPUT *ptr_analog_input = (TYPE_ANALOG_INPUT*)input_ptr;
 
   ptr_analog_input->fixed_fault_time = fixed_counter_fault_limit;
-  ptr_analog_input->fixed_fault_time *= etm_tick_delay_1ms;
+  ptr_analog_input->fixed_fault_time *= ETMTickGet1msMultiplier();
   
   if (ptr_analog_input->fixed_fault_time > ETM_ANALOG_MAX_FAULT_LIMIT) {
     ptr_analog_input->fixed_fault_time = ETM_ANALOG_MAX_FAULT_LIMIT;
@@ -147,7 +147,9 @@ void ETMAnalogInputInitializeRelativeTripLevels(TYPE_PUBLIC_ANALOG_INPUT* input_
   unsigned int compare_point;
   TYPE_ANALOG_INPUT *ptr_analog_input = (TYPE_ANALOG_INPUT*)input_ptr;
  
-  ptr_analog_input->relative_fault_time = relative_counter_fault_limit * etm_tick_delay_1ms;
+  ptr_analog_input->relative_fault_time = relative_counter_fault_limit;
+  ptr_analog_input->relative_fault_time *= ETMTickGet1msMultiplier();
+
   if (ptr_analog_input->relative_fault_time > ETM_ANALOG_MAX_FAULT_LIMIT) {
     ptr_analog_input->relative_fault_time = ETM_ANALOG_MAX_FAULT_LIMIT;
   }

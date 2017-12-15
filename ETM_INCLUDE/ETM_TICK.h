@@ -30,8 +30,6 @@
 #define ETM_TICK_USE_TIMER_4   4
 #define ETM_TICK_USE_TIMER_5   5
 
-extern unsigned int etm_tick_delay_1ms;
-
 void ETMTickInitialize(unsigned long fcy_clk, char timer_select);
 /*
   This configures the timers and sets up the module
@@ -70,5 +68,10 @@ unsigned long ETMTickGet(void);
   Returns the current 32 bit timer
 */
 
+
+unsigned int ETMTickGet1msMultiplier(void);
+/*
+  Returns the number of ticks in 1ms
+*/
 
 #endif
