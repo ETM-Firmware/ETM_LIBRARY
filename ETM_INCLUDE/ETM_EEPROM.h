@@ -131,6 +131,26 @@ unsigned int ETMEEPromWriteWordWithConfirmation(unsigned int register_location, 
 */
 
 
+unsigned int ETMEEPromReturnDebugData(unsigned int debug_data_index);
+/*
+  Returns a single word of debug data.
+  Types of debug data defined below
+*/
+
+#define ETM_EEPROM_DEBUG_DATA_READ_INTERNAL_COUNT           0
+#define ETM_EEPROM_DEBUG_DATA_READ_INTERNAL_ERROR           1
+#define ETM_EEPROM_DEBUG_DATA_WRITE_INTERNAL_COUNT          2
+#define ETM_EEPROM_DEBUG_DATA_WRITE_INTERNAL_ERROR          3
+#define ETM_EEPROM_DEBUG_DATA_READ_I2C_COUNT                4
+#define ETM_EEPROM_DEBUG_DATA_READ_I2C_ERROR                5
+#define ETM_EEPROM_DEBUG_DATA_WRITE_I2C_COUNT               6
+#define ETM_EEPROM_DEBUG_DATA_WRITE_I2C_ERROR               7
+#define ETM_EEPROM_DEBUG_DATA_READ_SPI_COUNT                8
+#define ETM_EEPROM_DEBUG_DATA_READ_SPI_ERROR                9
+#define ETM_EEPROM_DEBUG_DATA_WRITE_SPI_COUNT               10
+#define ETM_EEPROM_DEBUG_DATA_WRITE_SPI_ERROR               11
+#define ETM_EEPROM_DEBUG_DATA_CRC_ERROR                     12
+
 
 
 #define ETM_EEPROM_INTERNAL_SELECTED  0
@@ -149,6 +169,9 @@ unsigned int ETMEEPromWriteWordWithConfirmation(unsigned int register_location, 
 
 #define EEPROM_SIZE_8K_BYTES                 0x2000
 #define EEPROM_SIZE_64K_BITS                 0x2000
+
+
+
 
 
 #endif

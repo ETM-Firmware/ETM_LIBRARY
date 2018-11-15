@@ -46,19 +46,20 @@ typedef struct {
   unsigned int read_spi_error;
   unsigned int read_i2c_error;
   unsigned int write_internal_error;
-  unsigned int write_i2c_error;
   unsigned int write_spi_error;
-  unsigned int crc_error;
-  unsigned int page_write_count_internal;
-  unsigned int page_write_count_spi;
-  unsigned int page_write_count_i2c;
+  unsigned int write_i2c_error;
   unsigned int page_read_count_internal;
   unsigned int page_read_count_spi;
   unsigned int page_read_count_i2c;
+  unsigned int page_write_count_internal;
+  unsigned int page_write_count_spi;
+  unsigned int page_write_count_i2c;
+  unsigned int crc_error;
 
 } TYPE_EEPROM_DEBUG_DATA;
 
 static TYPE_EEPROM_DEBUG_DATA eeprom_debug_data;
+
 
 static unsigned int ETMEEPromPrivateReadSinglePage(unsigned int page_number, unsigned int *page_data);
 static unsigned int ETMEEPromPrivateWriteSinglePage(unsigned int page_number, unsigned int *page_data);
@@ -86,6 +87,8 @@ void ETMEEPromConfigureSPIDevice(unsigned int size_bytes,
 				 unsigned long pin_hold,
 				 unsigned long pin_write_protect) {
   // DPARKER need to write this
+
+  external_eeprom_SPI.size_bytes = size_bytes;
 }
 
 
@@ -114,7 +117,7 @@ unsigned int ETMEEPromReadPage(unsigned int page_number, unsigned int *page_data
     If the function return is 0xFFFF the data is valid
     If the function return is 0, the data is NOT valid
   */
-  
+
   page_number = page_number * 2;
   if (ETMEEPromPrivateReadSinglePage(page_number, &page_data[0])) {
     return 0xFFFF;
@@ -123,7 +126,7 @@ unsigned int ETMEEPromReadPage(unsigned int page_number, unsigned int *page_data
   if (ETMEEPromPrivateReadSinglePage(page_number + 1, &page_data[0])) {
     return 0xFFFF;
   }
-  
+
   return 0;
 }
 
@@ -185,7 +188,8 @@ unsigned int ETMEEPromWritePageWithConfirmation(unsigned int page_number, unsign
 
 
   unsigned int page_read[16];
-
+  page_number = page_number * 2;
+  
   // Write and check page A, abort on error
   if (ETMEEPromPrivateWriteSinglePage(page_number, &page_data[0]) == 0) {
     return 0;
@@ -218,7 +222,7 @@ unsigned int ETMEEPromWriteWordWithConfirmation(unsigned int register_location, 
   unsigned int page_read[16];
   unsigned int page_number;
 
-  page_number = register_location >> 4;
+  page_number = (register_location >> 4);
   register_location &= 0x0F;
   
   // Load the existing contents of the register
@@ -537,3 +541,66 @@ unsigned int ETMEEPromPrivateWritePageSPI(unsigned int page_number, unsigned int
 unsigned int ETMEEPromPrivateReadPageSPI(unsigned int page_number, unsigned int *data) {
   return 0;
 }
+
+
+unsigned int ETMEEPromReturnDebugData(unsigned int debug_data_index) {
+  unsigned int error_return;
+  switch (debug_data_index) {
+    
+  case ETM_EEPROM_DEBUG_DATA_READ_INTERNAL_ERROR:
+    error_return = eeprom_debug_data.read_internal_error;
+    break;
+
+  case ETM_EEPROM_DEBUG_DATA_READ_INTERNAL_COUNT:
+    error_return = eeprom_debug_data.page_read_count_internal;
+    break;
+
+  case ETM_EEPROM_DEBUG_DATA_WRITE_INTERNAL_ERROR:
+    error_return = eeprom_debug_data.write_internal_error;
+    break;
+
+  case ETM_EEPROM_DEBUG_DATA_WRITE_INTERNAL_COUNT:
+    error_return = eeprom_debug_data.page_write_count_internal;
+    break;
+
+  case ETM_EEPROM_DEBUG_DATA_READ_SPI_ERROR:
+    error_return = eeprom_debug_data.read_spi_error;
+    break;
+
+  case ETM_EEPROM_DEBUG_DATA_READ_SPI_COUNT:
+    error_return = eeprom_debug_data.page_read_count_spi;
+    break;
+
+  case ETM_EEPROM_DEBUG_DATA_WRITE_SPI_ERROR:
+    error_return = eeprom_debug_data.write_spi_error;
+    break;
+
+  case ETM_EEPROM_DEBUG_DATA_WRITE_SPI_COUNT:
+    error_return = eeprom_debug_data.page_write_count_spi;
+    break;
+
+  case ETM_EEPROM_DEBUG_DATA_READ_I2C_ERROR:
+    error_return = eeprom_debug_data.read_i2c_error;
+    break;
+
+  case ETM_EEPROM_DEBUG_DATA_READ_I2C_COUNT:
+    error_return = eeprom_debug_data.page_read_count_i2c;
+    break;
+
+  case ETM_EEPROM_DEBUG_DATA_WRITE_I2C_ERROR:
+    error_return = eeprom_debug_data.write_i2c_error;
+    break;
+
+  case ETM_EEPROM_DEBUG_DATA_WRITE_I2C_COUNT:
+    error_return = eeprom_debug_data.page_write_count_i2c;
+    break;
+
+  case ETM_EEPROM_DEBUG_DATA_CRC_ERROR:
+    error_return = eeprom_debug_data.crc_error;
+    break;
+
+  }
+  return error_return;
+
+}
+
