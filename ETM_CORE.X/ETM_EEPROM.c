@@ -231,7 +231,7 @@ unsigned int ETMEEPromWriteWordWithConfirmation(unsigned int register_location, 
   }
   
   // Modify the value being changed
-  *(&page_read[0] + register_location*2) = data;
+  *(&page_read[0] + register_location) = data;
   
   // Write the data back to EEProm
   if (ETMEEPromWritePageWithConfirmation(page_number, &page_read[0])) {
