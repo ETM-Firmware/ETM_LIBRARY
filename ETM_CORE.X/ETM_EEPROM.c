@@ -28,9 +28,9 @@ typedef struct {
 } TYPE_ETMEEPROM_I2C;
 
 typedef struct {
-  unsigned int  pin_chip_select_not;
-  unsigned int  pin_hold;
-  unsigned int  pin_write_protect;
+  unsigned long pin_chip_select_not;
+  unsigned long pin_hold;
+  unsigned long pin_write_protect;
   unsigned char spi_port;
   unsigned int  size_bytes;
 } TYPE_ETMEEPROM_SPI;
@@ -79,6 +79,11 @@ void ETMEEPromConfigureI2CDevice(unsigned int size_bytes, unsigned long fcy_clk,
 }
 
 
+
+#define SPI_READ_COMMAND_BYTE          0b00000011
+#define SPI_WRITE_COMMAND_BYTE         0b00000010
+#define SPI_WRITE_ENABLE_COMMAND_BYTE  0b00000110
+
 void ETMEEPromConfigureSPIDevice(unsigned int size_bytes,
 				 unsigned long fcy_clk,
 				 unsigned long spi_bit_rate,
@@ -86,9 +91,29 @@ void ETMEEPromConfigureSPIDevice(unsigned int size_bytes,
 				 unsigned long pin_chip_select_not,
 				 unsigned long pin_hold,
 				 unsigned long pin_write_protect) {
-  // DPARKER need to write this
 
-  external_eeprom_SPI.size_bytes = size_bytes;
+  external_eeprom_SPI.pin_chip_select_not = pin_chip_select_not;
+  external_eeprom_SPI.pin_hold            = pin_hold;
+  external_eeprom_SPI.pin_write_protect   = pin_write_protect;
+  external_eeprom_SPI.spi_port            = spi_port;
+  external_eeprom_SPI.size_bytes          = size_bytes;
+
+
+  ETMSetPin(external_eeprom_SPI.pin_chip_select_not);
+  ETMSetPin(external_eeprom_SPI.pin_hold);
+  ETMSetPin(external_eeprom_SPI.pin_write_protect);
+
+  ETMPinTrisOutput(external_eeprom_SPI.pin_chip_select_not);
+  ETMPinTrisOutput(external_eeprom_SPI.pin_hold);
+  ETMPinTrisOutput(external_eeprom_SPI.pin_write_protect);
+
+  
+  ConfigureSPI(external_eeprom_SPI.spi_port,
+	       ETM_DEFAULT_SPI_CON_VALUE,
+	       ETM_DEFAULT_SPI_CON2_VALUE,
+	       ETM_DEFAULT_SPI_STAT_VALUE,
+	       spi_bit_rate,
+	       fcy_clk);
 }
 
 
@@ -535,11 +560,164 @@ unsigned int ETMEEPromPrivateReadPageI2C(unsigned int page_number, unsigned int 
 
 
 unsigned int ETMEEPromPrivateWritePageSPI(unsigned int page_number, unsigned int *data) {
-  return 0;
+  unsigned int spi_error;
+  unsigned int address;
+  unsigned int n;
+  unsigned long temp;
+
+  
+  if (page_number > external_eeprom_SPI.size_bytes >> 5) {
+    // The requeted page address is outside the boundry of this device.
+    return 0;
+  }
+
+  address = (page_number << 5);
+  spi_error = 0;
+
+  ETMClearPin(external_eeprom_SPI.pin_chip_select_not);
+  
+  // FORCE 8 Bit MODE command word
+  if (external_eeprom_SPI.spi_port == ETM_SPI_PORT_1) {
+    SPI1CONbits.MODE16 = 0;
+  } else {
+    SPI2CONbits.MODE16 = 0;
+  }
+
+  // Send out "Set Write Enable Latch"
+  if (spi_error == 0) {
+    temp = SendAndReceiveSPI(SPI_WRITE_ENABLE_COMMAND_BYTE, external_eeprom_SPI.spi_port);
+    if (temp == 0x11110000) {
+      spi_error = 0b00000001;
+    }
+  }
+
+
+  ETMSetPin(external_eeprom_SPI.pin_chip_select_not);
+
+  Nop();
+  Nop();
+  Nop();
+  Nop();
+  
+  ETMClearPin(external_eeprom_SPI.pin_chip_select_not);
+  
+  // Send out the command byte
+  if (spi_error == 0) {
+    temp = SendAndReceiveSPI(SPI_WRITE_COMMAND_BYTE, external_eeprom_SPI.spi_port);
+    if (temp == 0x11110000) {
+      spi_error = 0b00000001;
+    }
+  }
+  
+  // Switch back to 16 bit mode
+  if (external_eeprom_SPI.spi_port == ETM_SPI_PORT_1) {
+    SPI1CONbits.MODE16 = 1;
+  } else {
+    SPI2CONbits.MODE16 = 1;
+  }
+
+  
+  // Send out the address word
+  if (spi_error == 0) {
+    temp = SendAndReceiveSPI(address, external_eeprom_SPI.spi_port);
+    if (temp == 0x11110000) {
+      spi_error = 0b00000010;
+    }
+  }
+
+  // Read 16 Words
+  for (n = 0; n < 16; n++) {
+    if (spi_error == 0) {
+      temp = SendAndReceiveSPI(data[n], external_eeprom_SPI.spi_port);
+      if (temp == 0x11110000) {
+	spi_error = 0b00000100;
+      }
+    }
+  }
+
+
+  ETMSetPin(external_eeprom_SPI.pin_chip_select_not);
+
+  if (spi_error) {
+    return 0;
+  }
+  return 0xFFFF;
+
+
+
 }
 
 unsigned int ETMEEPromPrivateReadPageSPI(unsigned int page_number, unsigned int *data) {
-  return 0;
+  unsigned int spi_error;
+  unsigned int address;
+  unsigned int n;
+  unsigned int data_read;
+  unsigned long temp;
+
+  
+  if (page_number > external_eeprom_SPI.size_bytes >> 5) {
+    // The requeted page address is outside the boundry of this device.
+    return 0;
+  }
+
+  address = (page_number << 5);
+  spi_error = 0;
+
+  ETMClearPin(external_eeprom_SPI.pin_chip_select_not);
+ 
+  // FORCE 8 Bit MODE command word
+  if (external_eeprom_SPI.spi_port == ETM_SPI_PORT_1) {
+    SPI1CONbits.MODE16 = 0;
+  } else {
+    SPI2CONbits.MODE16 = 0;
+  }
+
+
+  
+  // Send out the command byte
+  if (spi_error == 0) {
+    temp = SendAndReceiveSPI(SPI_READ_COMMAND_BYTE, external_eeprom_SPI.spi_port);
+    if (temp == 0x11110000) {
+      spi_error = 0b00000001;
+    }
+  }
+  
+  // Switch back to 16 bit mode
+  if (external_eeprom_SPI.spi_port == ETM_SPI_PORT_1) {
+    SPI1CONbits.MODE16 = 1;
+  } else {
+    SPI2CONbits.MODE16 = 1;
+  }
+
+  
+  // Send out the address word
+  if (spi_error == 0) {
+    temp = SendAndReceiveSPI(address, external_eeprom_SPI.spi_port);
+    if (temp == 0x11110000) {
+      spi_error = 0b00000010;
+    }
+  }
+
+  // Read 16 Words
+  for (n = 0; n < 16; n++) {
+    if (spi_error == 0) {
+      temp = SendAndReceiveSPI(0, external_eeprom_SPI.spi_port);
+      if (temp == 0x11110000) {
+	spi_error = 0b00000100;
+      } else {
+	data_read = temp & 0x0000FFFF;
+	data[n] = data_read;
+      }
+    }
+  }
+
+  ETMSetPin(external_eeprom_SPI.pin_chip_select_not);
+  
+  if (spi_error) {
+    return 0;
+  }
+  return 0xFFFF;
+
 }
 
 
