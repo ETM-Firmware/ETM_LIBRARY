@@ -3,8 +3,8 @@
     <type>com.microchip.mplab.nbide.embedded.makeproject</type>
     <configuration>
         <data xmlns="http://www.netbeans.org/ns/make-project/1">
-            <name>ETM_TCPModbus</name>
-            <creation-uuid>6a57f88f-9bf2-425c-94ec-bf08afa50d8f</creation-uuid>
+            <name>ETM_TCPModbus_ENCX24J600</name>
+            <creation-uuid>e8db0fa2-10c6-4b04-9090-0c87037fbe52</creation-uuid>
             <make-project-type>0</make-project-type>
             <c-extensions>c</c-extensions>
             <cpp-extensions/>

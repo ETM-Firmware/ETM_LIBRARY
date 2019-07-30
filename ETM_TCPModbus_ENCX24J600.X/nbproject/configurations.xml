@@ -6,7 +6,7 @@
                    projectFiles="true">
       <itemPath>ARP.h</itemPath>
       <itemPath>Compiler.h</itemPath>
-      <itemPath>ENC28J60.h</itemPath>
+      <itemPath>ENCX24J600.h</itemPath>
       <itemPath>GenericTypeDefs.h</itemPath>
       <itemPath>Helpers.h</itemPath>
       <itemPath>ICMP.h</itemPath>
@@ -16,7 +16,7 @@
       <itemPath>TCP.h</itemPath>
       <itemPath>TCPIP.h</itemPath>
       <itemPath>TCPIPConfig.h</itemPath>
-      <itemPath>TCPIPENC28.h</itemPath>
+      <itemPath>TCPIPENC624.h</itemPath>
       <itemPath>TCPmodbus.h</itemPath>
     </logicalFolder>
     <logicalFolder name="LinkerScript"
@@ -27,7 +27,7 @@
                    displayName="Source Files"
                    projectFiles="true">
       <itemPath>ARP.c</itemPath>
-      <itemPath>ENC28J60.c</itemPath>
+      <itemPath>ENCX24J600.c</itemPath>
       <itemPath>Helpers.c</itemPath>
       <itemPath>ICMP.c</itemPath>
       <itemPath>IP.c</itemPath>
@@ -127,6 +127,25 @@
       <C30-AR>
         <property key="additional-options-chop-files" value="false"/>
       </C30-AR>
+      <C30-AS>
+        <property key="assembler-symbols" value=""/>
+        <property key="expand-macros" value="false"/>
+        <property key="extra-include-directories-for-assembler" value=""/>
+        <property key="extra-include-directories-for-preprocessor" value=""/>
+        <property key="false-conditionals" value="false"/>
+        <property key="keep-locals" value="false"/>
+        <property key="list-assembly" value="false"/>
+        <property key="list-section-info" value="false"/>
+        <property key="list-source" value="false"/>
+        <property key="list-symbols" value="false"/>
+        <property key="oXC16asm-extra-opts" value=""/>
+        <property key="oXC16asm-list-to-file" value="false"/>
+        <property key="omit-debug-dirs" value="false"/>
+        <property key="omit-forms" value="false"/>
+        <property key="preprocessor-macros" value=""/>
+        <property key="relax" value="false"/>
+        <property key="warning-level" value="emit-warnings"/>
+      </C30-AS>
       <C30-LD>
         <property key="additional-options-use-response-files" value="false"/>
         <property key="boot-eeprom" value="no_eeprom"/>
@@ -242,7 +261,7 @@
         <property key="programoptions.preservedataflash" value="false"/>
         <property key="programoptions.preservedataflash.ranges" value=""/>
         <property key="programoptions.preserveeeprom" value="false"/>
-        <property key="programoptions.preserveeeprom.ranges" value=""/>
+        <property key="programoptions.preserveeeprom.ranges" value="7ff000-7fffff"/>
         <property key="programoptions.preserveprogram.ranges" value=""/>
         <property key="programoptions.preserveprogramrange" value="false"/>
         <property key="programoptions.preserveuserid" value="false"/>
