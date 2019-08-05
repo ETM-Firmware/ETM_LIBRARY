@@ -446,7 +446,7 @@ void ETMAnalogOutputEnable(TYPE_PUBLIC_ANALOG_OUTPUT* output_ptr) {
   ptr_analog_output->output_enabled = 1;
 }
 
-unsigned int ETMAnalogOuputGetDACValue(TYPE_PUBLIC_ANALOG_OUTPUT* output_ptr) {
+unsigned int ETMAnalogOutputGetDACValue(TYPE_PUBLIC_ANALOG_OUTPUT* output_ptr) {
   unsigned int temp;
   TYPE_ANALOG_OUTPUT *ptr_analog_output = (TYPE_ANALOG_OUTPUT*)output_ptr;  
 
@@ -468,3 +468,8 @@ unsigned int ETMAnalogOuputGetDACValue(TYPE_PUBLIC_ANALOG_OUTPUT* output_ptr) {
   return temp;
 }
 
+unsigned int ETMAnalogOutputGetSetPoint(TYPE_PUBLIC_ANALOG_OUTPUT* output_ptr) {
+  TYPE_ANALOG_OUTPUT *ptr_analog_output = (TYPE_ANALOG_OUTPUT*)output_ptr;
+
+  return ptr_analog_output->set_point;
+}

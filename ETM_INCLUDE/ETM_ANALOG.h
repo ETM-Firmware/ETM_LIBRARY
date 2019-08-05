@@ -162,12 +162,18 @@ void ETMAnalogOutputSetPoint(TYPE_PUBLIC_ANALOG_OUTPUT* ptr_analog_output, unsig
   This subroutine must be called after ETMAnalogOutputInitialize
 */
 
-unsigned int ETMAnalogOuputGetDACValue(TYPE_PUBLIC_ANALOG_OUTPUT* ptr_analog_output);
+unsigned int ETMAnalogOutputGetDACValue(TYPE_PUBLIC_ANALOG_OUTPUT* ptr_analog_output);
 /*
   This will return the value that needs to be written to the DAC to generate the requested output
   If the dac is disabled, this will return the DAC value associated with "disabled_set_point"
   If the dac is enabled, this will return the DAC value assoicated with "set_point"
 */
+
+unsigned int ETMAnalogOutputGetSetPoint(TYPE_PUBLIC_ANALOG_OUTPUT* ptr_analog_output);
+/*
+  This returns the set point.
+*/
+
 
 void ETMAnalogOutputDisable(TYPE_PUBLIC_ANALOG_OUTPUT* ptr_analog_output);
 /*
