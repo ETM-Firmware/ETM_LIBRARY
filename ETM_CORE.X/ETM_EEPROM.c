@@ -61,9 +61,10 @@ typedef struct {
 static TYPE_EEPROM_DEBUG_DATA eeprom_debug_data;
 
 
-static unsigned int ETMEEPromPrivateReadSinglePage(unsigned int page_number, unsigned int *page_data);
-static unsigned int ETMEEPromPrivateWriteSinglePage(unsigned int page_number, unsigned int *page_data);
+unsigned int ETMEEPromPrivateReadSinglePage(unsigned int page_number, unsigned int *page_data);
+// This function is used by P1395_CAN_SLAVE
 
+static unsigned int ETMEEPromPrivateWriteSinglePage(unsigned int page_number, unsigned int *page_data);
 static unsigned int ETMEEPromPrivateWritePageInternal(unsigned int page_number, unsigned int *data);
 static unsigned int ETMEEPromPrivateReadPageInternal(unsigned int page_number, unsigned int *data);
 static unsigned int ETMEEPromPrivateWritePageI2C(unsigned int page_number, unsigned int *data);
