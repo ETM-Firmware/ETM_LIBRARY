@@ -375,6 +375,77 @@ _ETMReadPinLatch:
 
 
 
+
+	        .global  _ETMReadPin
+        .text
+_ETMReadPin:
+	;; Port should be stored in W1 after function call
+	;; Pin should be stored in W0 after function call
+
+
+	        BRA            	W1
+	
+; _branchPortA:	
+	.ifdef __PORTA_ACTIVE
+		AND             PORTA, WREG		; Note that the Mask must be stored in W0	
+	.else	
+		NOP
+	.endif
+		RETURN
+
+; _branchPortB:
+	.ifdef __PORTB_ACTIVE
+		AND             PORTB, WREG		; Note that the Mask must be stored in W0
+	.else
+		NOP
+	.endif
+		RETURN
+; _branchPortC:
+	.ifdef __PORTC_ACTIVE
+		AND             PORTC, WREG		; Note that the Mask must be stored in W0	
+	.else
+		NOP
+	.endif
+		RETURN
+; _branchPortD:
+	.ifdef __PORTD_ACTIVE
+		AND             PORTD, WREG		; Note that the Mask must be stored in W0	
+	.else
+		NOP
+	.endif
+		RETURN
+; _branchPortE:
+	.ifdef __PORTE_ACTIVE
+		AND             PORTE, WREG		; Note that the Mask must be stored in W0	
+	.else	
+		NOP
+	.endif
+		RETURN
+; _branchPortF:
+	.ifdef __PORTF_ACTIVE
+		AND             PORTF, WREG		; Note that the Mask must be stored in W0	
+	.else
+		NOP
+	.endif
+		RETURN
+; _branchPortG:
+	.ifdef __PORTG_ACTIVE
+		AND             PORTG, WREG		; Note that the Mask must be stored in W0	
+	.else
+		NOP
+	.endif
+		RETURN
+
+; _branchPortNone:
+		CLR             WREG             
+		RETURN
+
+
+
+
+
+
+
 	
 
 ;--------End of All Code Sections ---------------------------------------------

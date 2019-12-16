@@ -3,6 +3,10 @@
 #include "P1395_CAN_SLAVE.h"
 #include "ETM.h"
 
+// GLOBAL VARIABLES
+ETMCanBoardData           slave_board_data;            // This contains information that is always mirrored on ECB
+
+
 
 // DOSE LEVEL DEFINITIONS
 
@@ -25,6 +29,8 @@
 #define ETM_CAN_DATA_LOG_REGISTER_BOARD_SPECIFIC_5               0x050
 #define ETM_CAN_DATA_LOG_REGISTER_CONFIG_0                       0x060
 #define ETM_CAN_DATA_LOG_REGISTER_CONFIG_1                       0x070
+
+#define ETM_CAN_DATA_LOG_REGISTER_PULSE_0                        0x080
 
 
 #define ETM_CAN_DATA_LOG_REGISTER_DEFAULT_DEBUG_0                0x1C0
@@ -103,7 +109,6 @@ static void DoCanInterrupt(void);  //  Helper function for Can interupt handler
 
 
 // -------------------- local variables -------------------------- //
-static ETMCanBoardData           slave_board_data;            // This contains information that is always mirrored on ECB
 
 static ETMCanBoardDebuggingData  etm_can_slave_debug_data;    // This information is only mirrored on ECB if this module is selected on the GUI
 static ETMCanSyncMessage         etm_can_slave_sync_message;  // This is the most recent sync message recieved from the ECB
@@ -1544,7 +1549,7 @@ unsigned int ETMCanSlaveGetPulseLevelAndCount(void) {
   _C2IE = 0;
 
   return_value = etm_can_slave_sync_message.next_energy_level;
-  return_value <<=9;
+  return_value <<=8;
   return_value |= etm_can_slave_sync_message.pulse_count;
   
   // Reenable the relevant can interrupt

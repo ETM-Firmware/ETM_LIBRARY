@@ -114,7 +114,7 @@ typedef struct {
 
   unsigned int            connection_timeout;                // On the ECB this is used to flag if the board connection has timed out or not.
   unsigned long           time_last_status_message_recieved; // On the ECB this is used to track the last time a status message was recieved from this board.  
-  
+  unsigned int            spare;
   //unsigned int            cmd_data[12];     // On the ECB, this stores data to be sent to the slave boards, on slave boards, this stores the data recieved from ECB
                                             // This should be read only to the user application program
 } ETMCanBoardData;
@@ -549,16 +549,16 @@ unsigned int ETMCanBufferNotEmpty(ETMCanMessageBuffer* buffer_ptr);
 
 //------------------------------- Specific Board and Command Defines -------------------------- // 
 
-#define ETM_CAN_ADDR_ION_PUMP_BOARD                                     0x0000
-#define ETM_CAN_ADDR_MAGNETRON_CURRENT_BOARD                            0x0001
-#define ETM_CAN_ADDR_HV_LAMBDA_BOARD                                    0x0002
-#define ETM_CAN_ADDR_AFC_CONTROL_BOARD                                  0x0003
-#define ETM_CAN_ADDR_COOLING_INTERFACE_BOARD                            0x0004
-#define ETM_CAN_ADDR_HEATER_MAGNET_BOARD                                0x0005
-#define ETM_CAN_ADDR_GUN_DRIVER_BOARD                                   0x0006
+#define ETM_CAN_ADDR_HV_LAMBDA_BOARD                                    0x0000
+#define ETM_CAN_ADDR_ION_PUMP_BOARD                                     0x0001
+#define ETM_CAN_ADDR_AFC_CONTROL_BOARD                                  0x0002
+#define ETM_CAN_ADDR_COOLING_INTERFACE_BOARD                            0x0003
+#define ETM_CAN_ADDR_HEATER_MAGNET_BOARD                                0x0004
+#define ETM_CAN_ADDR_GUN_DRIVER_BOARD                                   0x0005
+#define ETM_CAN_ADDR_MAGNETRON_CURRENT_BOARD                            0x0006
 #define ETM_CAN_ADDR_TARGET_CURRENT_BOARD                               0x0007
-#define ETM_CAN_ADDR_PFN_BOARD                                          0x0008
-#define ETM_CAN_ADDR_DOSE_MONITOR_BOARD                                 0x0009
+#define ETM_CAN_ADDR_DOSE_MONITOR_BOARD                                 0x0008
+#define ETM_CAN_ADDR_PFN_BOARD                                          0x0009
 #define ETM_CAN_ADDR_ETHERNET_BOARD                                     0x000F
 
 
@@ -587,9 +587,7 @@ unsigned int ETMCanBufferNotEmpty(ETMCanMessageBuffer* buffer_ptr);
 #define DISCRETE_CMD_AFC_DO_AUTO_ZERO                   0x01
 #define DISCRETE_CMD_AFC_SELECT_MANUAL_MODE             0x02
 #define DISCRETE_CMD_AFC_SELECT_AUTOMATIC_MODE          0x03
-#define DISCRETE_CMD_COOLING_ALLOW_25_SF6_PULSES        0x04
-#define DISCRETE_CMD_COOLING_OVERRIDE_MINIMUM_FILL      0x05
-#define DISCRETE_CMD_COOLING_RESET_BOTTLE_COUNT         0x06
+#define DISCRETE_CMD_COOLING_RESET_BOTTLE_COUNT         0x04
 
 
 
