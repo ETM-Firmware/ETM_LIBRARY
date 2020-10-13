@@ -1,9 +1,13 @@
 #ifndef __TCP_MODBUS_H
 #define __TCP_MODBUS_H
 
+#define ADD_SECOND_MODBUS_CLIENT    1
 
 typedef struct {
   unsigned long remote_ip_addr;
+#ifdef ADD_SECOND_MODBUS_CLIENT
+  unsigned long remote_ip_addr2;
+#endif
   unsigned long ip_addr;
   unsigned long mask;
   unsigned long gate;
@@ -49,6 +53,10 @@ void ETMTCPModbusTask(void);
 
 
 void ETMModbusApplicationSpecificTXData(ETMModbusTXData* tx_data_to_send);
+#ifdef ADD_SECOND_MODBUS_CLIENT
+void ETMModbusApplicationSpecificTXData2(ETMModbusTXData* tx_data_to_send);
+void ETMModbusApplicationSpecificRXData2(unsigned char data_RX[]);
+#endif
 /*
   This function must be defined in the user application file.
   It is used to generate the TX data
@@ -78,6 +86,14 @@ void ETMModbusApplicationSpecificRXData(unsigned char data_RX[]);
 #define COUNT_SM_SOCKET_OBTAINED_MSG_TX         3
 #define COUNT_SM_PROCESS_RESPONSE_MSG_RX        4
 #define ERROR_COUNT_SM_DISCONNECT               5
+
+#define ERROR_COUNT_SM_PROCESS_RESPONSE_TIMEOUT2 6
+#define ERROR_COUNT_SM_SOCKET_OBTAINED_TIMEOUT2  7
+#define ERROR_SM_PROCESS_RESPONSE_TIMEOUT_ID2    8
+#define COUNT_SM_SOCKET_OBTAINED_MSG_TX2         9
+#define COUNT_SM_PROCESS_RESPONSE_MSG_RX2        10
+#define ERROR_COUNT_SM_DISCONNECT2               11
+
 unsigned int ETMTCPModbusGetErrorInfo(unsigned char error);
 /*
   This is used to access the debugging variables availabel for the TCPmodbus module

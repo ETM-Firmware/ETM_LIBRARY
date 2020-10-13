@@ -67,14 +67,26 @@
 
 
 static void ETMTCPClient(void);
+#ifdef ADD_SECOND_MODBUS_CLIENT
+static void ETMTCPClient2(void);
+#endif
 
 typedef struct {
   unsigned int sm_process_response_timeout;
   unsigned int sm_socket_obtained_timeout;
   unsigned int sm_process_response_timeout_last_command;
   unsigned int sm_socket_obtained_messages_sent;
-  unsigned int sm_process_response_messages_recieved;
+  unsigned int sm_process_response_messages_received;
   unsigned int sm_disconnect_count;
+
+#ifdef ADD_SECOND_MODBUS_CLIENT
+  unsigned int sm_process_response_timeout2;
+  unsigned int sm_socket_obtained_timeout2;
+  unsigned int sm_process_response_timeout_last_command2;
+  unsigned int sm_socket_obtained_messages_sent2;
+  unsigned int sm_process_response_messages_received2;
+  unsigned int sm_disconnect_count2;
+#endif
 } TYPE_ETM_ETHERNET_DEBUG;
 
 static TYPE_ETM_ETHERNET_DEBUG etm_ethernet_debug;
@@ -108,6 +120,9 @@ void ETMTCPModbusInitialize(IPCONFIG* ip_config, unsigned int connection_timeout
   AppConfig.PrimaryDNSServer.Val = ip_config->dns;
   AppConfig.SecondaryDNSServer.Val = MY_DEFAULT_SECONDARY_DNS_BYTE1 | MY_DEFAULT_SECONDARY_DNS_BYTE2<<8ul  | MY_DEFAULT_SECONDARY_DNS_BYTE3<<16ul  | MY_DEFAULT_SECONDARY_DNS_BYTE4<<24ul;
   AppConfig.MyRemIPAddr.Val = ip_config->remote_ip_addr;
+#ifdef ADD_SECOND_MODBUS_CLIENT  
+  AppConfig.MyRemIPAddr2.Val = ip_config->remote_ip_addr2;
+#endif
     
   // Load the NetBIOS Host Name
   AppConfig.NetBIOSName[0]  = ip_config->net_bios_name[0];
@@ -145,6 +160,9 @@ void ETMTCPModbusTask(void) {
 
   StackTask();
   ETMTCPClient();
+#ifdef ADD_SECOND_MODBUS_CLIENT
+  ETMTCPClient2();
+#endif  
 }
 
 
@@ -233,15 +251,15 @@ void ETMTCPClient(void) {
       //tx_data = ETMModbusApplicationSpecificTXData();
       ETMModbusApplicationSpecificTXData(&tx_data);
 
-      if ((tx_data.header_length + tx_data.data_length) > TCPIsPutReady(MySocket)) {
-	// The socket can not be written to
-	break;
-      }
-      
       // don't want to send anything for now, stay in this state
       if (tx_data.tx_ready == 0) {
-	break;
+		break;
       }
+      if ((tx_data.header_length + tx_data.data_length) > TCPIsPutReady(MySocket)) {
+	// The socket can not be written to
+		break;
+      }
+      
       last_id = tx_data.header_data[6];
 
       TCPPutArray(MySocket, &tx_data.header_data[0], tx_data.header_length);
@@ -273,7 +291,7 @@ void ETMTCPClient(void) {
 	w -= len;
 	
 	ETMModbusApplicationSpecificRXData(rx_data);
-	etm_ethernet_debug.sm_process_response_messages_recieved++;
+	etm_ethernet_debug.sm_process_response_messages_received++;
 	ETMTCPState = SM_SOCKET_OBTAINED; // repeat sending
 	
       } else {
@@ -328,15 +346,198 @@ unsigned int ETMTCPModbusGetErrorInfo(unsigned char error) {
       break;
 
     case COUNT_SM_PROCESS_RESPONSE_MSG_RX:
-      return etm_ethernet_debug.sm_process_response_messages_recieved;
+      return etm_ethernet_debug.sm_process_response_messages_received;
       break;
 
     case ERROR_COUNT_SM_DISCONNECT:
       return etm_ethernet_debug.sm_disconnect_count;
       break;
 
+#ifdef ADD_SECOND_MODBUS_CLIENT
+    case ERROR_COUNT_SM_PROCESS_RESPONSE_TIMEOUT2:
+      return etm_ethernet_debug.sm_process_response_timeout2;
+      break;
+
+    case ERROR_COUNT_SM_SOCKET_OBTAINED_TIMEOUT2:
+      return etm_ethernet_debug.sm_socket_obtained_timeout2;
+      break;
+
+    case ERROR_SM_PROCESS_RESPONSE_TIMEOUT_ID2:
+      return etm_ethernet_debug.sm_process_response_timeout_last_command2;
+      break;
+
+    case COUNT_SM_SOCKET_OBTAINED_MSG_TX2:
+      return etm_ethernet_debug.sm_socket_obtained_messages_sent2;
+      break;
+
+    case COUNT_SM_PROCESS_RESPONSE_MSG_RX2:
+      return etm_ethernet_debug.sm_process_response_messages_received2;
+      break;
+
+    case ERROR_COUNT_SM_DISCONNECT2:
+      return etm_ethernet_debug.sm_disconnect_count2;
+      break;
+#endif
     }
 
   return 0;
 }
 
+#ifdef ADD_SECOND_MODBUS_CLIENT
+/*****************************************************************************
+  Function:
+	void ETMTCPClient2(void)
+
+  Summary:
+	Implements a simple HTTP client (over TCP).
+
+  Description:
+	This function implements a simple HTTP client, which operates over TCP.  
+	The function is called periodically by the stack, and waits for BUTTON1 
+	to be pressed.  When the button is pressed, the application opens a TCP
+	connection to an Internet search engine, performs a search for the word
+	"Microchip" on "microchip.com", and prints the resulting HTML page to
+	the UART.
+	
+	This example can be used as a model for many TCP and HTTP client
+	applications.
+
+  Precondition:
+	TCP is initialized.
+
+  Parameters:
+	None
+
+  Returns:
+  	None
+***************************************************************************/
+void ETMTCPClient2(void) {
+  unsigned int w;
+  unsigned int len;
+
+
+
+  ETMModbusTXData tx_data;
+
+  static  unsigned char last_id;
+  static DWORD		Timer;
+  static TCP_SOCKET	MySocket = INVALID_SOCKET;
+  static enum _ETMTCPState {
+    SM_HOME = 0,
+    SM_SOCKET_OBTAINED,
+    SM_PROCESS_RESPONSE,
+    SM_DISCONNECT,
+    SM_DONE
+  } ETMTCPState = SM_DONE;
+
+  switch(ETMTCPState) 
+    {
+    case SM_HOME:
+      // Connect a socket to the remote TCP server,
+      MySocket = TCPOpen(AppConfig.MyRemIPAddr2.Val, TCP_OPEN_IP_ADDRESS, 502, TCP_PURPOSE_TCP_MODBUS_CLIENT);
+      
+      // Abort operation if no TCP socket of type TCP_PURPOSE_TCP_MODBUS_CLIENT is available
+      // If this ever happens, you need to go add one to TCPIPConfig.h
+      if(MySocket == INVALID_SOCKET)
+	break;
+      
+      ETMTCPState = SM_SOCKET_OBTAINED;
+      Timer = ETMTickGet();
+      break;
+
+
+    case SM_SOCKET_OBTAINED:
+      // Wait for the remote server to accept our connection request
+      if(!TCPIsConnected(MySocket)) {
+	// Time out if too much time is spent in this state
+	if(ETMTickGreaterThanNMilliseconds(tcp_connected_timeout_milliseconds, Timer)) {
+	  // Close the socket so it can be used by other modules
+	  TCPDisconnect(MySocket);
+	  MySocket = INVALID_SOCKET;
+	  ETMTCPState = SM_HOME;
+	  etm_ethernet_debug.sm_socket_obtained_timeout2++;
+	}
+	break;
+      }
+      
+      Timer = ETMTickGet();
+      
+      tx_data.tx_ready = 0;
+      //tx_data = ETMModbusApplicationSpecificTXData();
+      ETMModbusApplicationSpecificTXData2(&tx_data);
+
+      // don't want to send anything for now, stay in this state
+      if (tx_data.tx_ready == 0) {
+		break;
+      }
+      if ((tx_data.header_length + tx_data.data_length) > TCPIsPutReady(MySocket)) {
+	// The socket can not be written to
+		break;
+      }
+      
+      last_id = tx_data.header_data[6];
+
+      TCPPutArray(MySocket, &tx_data.header_data[0], tx_data.header_length);
+      TCPPutArray(MySocket, tx_data.data_ptr, tx_data.data_length);
+      
+      // Send the packet
+      TCPFlush(MySocket);
+      etm_ethernet_debug.sm_socket_obtained_messages_sent2++;
+      ETMTCPState = SM_PROCESS_RESPONSE;
+      break;
+
+
+    case SM_PROCESS_RESPONSE:
+      // Check to see if the remote node has disconnected from us or sent us any application data
+      if(!TCPIsConnected(MySocket)) {
+	ETMTCPState = SM_DISCONNECT;
+	// Do not break;  We might still have data in the TCP RX FIFO waiting for us
+      }
+      
+      // Get count of RX bytes waiting
+      w = TCPIsGetReady(MySocket);	
+      
+      if (w) {
+	if (w > (MAX_RX_SIZE-1)) {
+	  w = (MAX_RX_SIZE-1);
+	}
+	
+	len = TCPGetArray(MySocket, rx_data, w);
+	w -= len;
+	
+	ETMModbusApplicationSpecificRXData2(rx_data);
+	etm_ethernet_debug.sm_process_response_messages_received2++;
+	ETMTCPState = SM_SOCKET_OBTAINED; // repeat sending
+	
+      } else {
+	// Time out if too much time is spent in this state
+	if(ETMTickGreaterThanNMilliseconds(sm_process_response_timeout_milliseconds, Timer)) {
+	  // Close the socket so it can be used by other modules
+	  TCPDisconnect(MySocket);
+	  MySocket = INVALID_SOCKET;
+	  ETMTCPState = SM_HOME;
+	  etm_ethernet_debug.sm_process_response_timeout2++;
+	  etm_ethernet_debug.sm_process_response_timeout_last_command2 = last_id;
+	}
+      }
+      
+      break;
+
+      
+    case SM_DISCONNECT:
+      // Close the socket so it can be used by other modules
+      // For this application, we wish to stay connected, but this state will still get entered if the remote server decides to disconnect
+      TCPDisconnect(MySocket);
+      etm_ethernet_debug.sm_disconnect_count2++;
+      MySocket = INVALID_SOCKET;
+      ETMTCPState = SM_DONE;
+      break;
+
+      
+    case SM_DONE:
+      ETMTCPState = SM_HOME;
+      break;
+    }
+}
+
+#endif

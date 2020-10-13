@@ -108,6 +108,7 @@ typedef struct __attribute__((__packed__)) appConfigStruct
 	MAC_ADDR	MyMACAddr;              // Application MAC address
 
 	IP_ADDR     MyRemIPAddr; 		// remote IP address
+	IP_ADDR     MyRemIPAddr2; 		// remote IP address
 
 
 } APP_CONFIG;
